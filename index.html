@@ -365,11 +365,20 @@
         box-shadow: 0 6px 20px rgba(0, 0, 0, 0.15);
       }
 
-      /* Admin cards: override grid layout, use simple block */
+      /* Admin cards: override grid layout, use simple block, centered */
       .card.admin-card {
         display: block !important;
         grid-template-columns: none !important;
-        text-align: left;
+        text-align: center;
+      }
+      .card.admin-card .admin-addr {
+        font-size: 0.75rem;
+        color: var(--muted);
+        font-style: italic;
+        margin-top: 4px;
+      }
+      body.desktop .card.admin-card .admin-addr {
+        font-size: 13px;
       }
 
       body.desktop .date {
@@ -863,14 +872,14 @@
           // Address
           if (loc.address) {
             var addr = document.createElement('div');
-            addr.style.cssText = 'font-size:1.1rem;color:var(--muted);margin-top:6px;font-style:italic;';
+            addr.className = 'admin-addr';
             addr.textContent = loc.address;
             card.appendChild(addr);
           }
 
           // Button row
           var btnRow = document.createElement('div');
-          btnRow.style.cssText = 'display:flex;gap:10px;margin-top:14px;flex-wrap:wrap;';
+          btnRow.style.cssText = 'display:flex;gap:10px;margin-top:14px;flex-wrap:wrap;justify-content:center;';
 
           // Copy card view URL button
           var btnCard = document.createElement('button');
