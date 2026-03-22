@@ -480,6 +480,10 @@
       var params = new URLSearchParams(window.location.search);
       var LOCATION_FILTER = params.get('location') || params.get('loc') || '';
       var WANTS_TEXT_ONLY = (params.get('text') === '1');
+      var WANTS_ADMIN = (params.get('admin') === '1');
+
+      // ── Base URL for building links ───────────────────────────────────
+      var BASE_URL = window.location.origin + window.location.pathname;
 
       // ── callServer — fetch() replacement for google.script.run ────────
       // Posts a JSON action to the Cloudflare Worker, which forwards to
@@ -781,15 +785,126 @@
         document.querySelector('.page').appendChild(pre);
       }
 
+      // ── Admin Page — Location Link Directory ────────────────────────
+      // Extracts unique locations from event data, renders a directory
+      // with clickable links and copy buttons for each location.
+      // Accessed via ?admin=1. No token needed — locations are public.
+
+      function extractLocations(data) {
+        var seen = {};
+        var locations = [];
+        for (var i = 0; i < (data || []).length; i++) {
+          var item = data[i];
+          if (!item || item.type !== 'event') continue;
+          var locs = item.locations || [];
+          for (var j = 0; j < locs.length; j++) {
+            var loc = locs[j];
+            if (!loc || !loc.name) continue;
+            var key = loc.name.toLowerCase().trim();
+            if (seen[key]) continue;
+            seen[key] = true;
+            locations.push({
+              name: loc.name.trim(),
+              address: (loc.address || '').trim()
+            });
+          }
+        }
+        locations.sort(function(a, b) {
+          return a.name.toLowerCase() < b.name.toLowerCase() ? -1 : 1;
+        });
+        return locations;
+      }
+
+      function copyToClipboard(text, btn) {
+        navigator.clipboard.writeText(text).then(function() {
+          var orig = btn.textContent;
+          btn.textContent = 'Copied!';
+          setTimeout(function() { btn.textContent = orig; }, 1500);
+        });
+      }
+
+      function renderAdmin(data) {
+        var locations = extractLocations(data);
+
+        // Replace header content
+        document.querySelector('.subtitle').textContent = 'Location Links';
+        if (locations.length === 0) {
+          setStatus('No locations found in calendar');
+          return;
+        }
+        setStatus(locations.length + ' location' + (locations.length === 1 ? '' : 's'));
+
+        var root = document.getElementById('list');
+        root.innerHTML = '';
+
+        for (var i = 0; i < locations.length; i++) {
+          var loc = locations[i];
+          var cardUrl = BASE_URL + '?location=' + encodeURIComponent(loc.name);
+          var textUrl = BASE_URL + '?text=1&location=' + encodeURIComponent(loc.name);
+
+          var card = document.createElement('div');
+          card.className = 'card';
+          card.style.cursor = 'default';
+          card.style.textAlign = 'left';
+
+          // Location name as clickable link
+          var nameLink = document.createElement('a');
+          nameLink.href = cardUrl;
+          nameLink.textContent = loc.name;
+          nameLink.style.cssText = 'font-weight:900;font-size:1.4rem;color:var(--spm-primary);text-decoration:none;';
+          card.appendChild(nameLink);
+
+          // Address
+          if (loc.address) {
+            var addr = document.createElement('div');
+            addr.style.cssText = 'font-size:1.1rem;color:var(--muted);margin-top:6px;font-style:italic;';
+            addr.textContent = loc.address;
+            card.appendChild(addr);
+          }
+
+          // Button row
+          var btnRow = document.createElement('div');
+          btnRow.style.cssText = 'display:flex;gap:10px;margin-top:14px;flex-wrap:wrap;';
+
+          // Copy card view URL button
+          var btnCard = document.createElement('button');
+          btnCard.textContent = 'Copy Card Link';
+          btnCard.style.cssText = 'border:none;border-radius:999px;padding:10px 16px;background:var(--spm-accent);color:#fff;font-weight:700;font-size:1rem;cursor:pointer;';
+          btnCard.setAttribute('data-url', cardUrl);
+          btnCard.addEventListener('click', (function(url, btn) {
+            return function(e) { e.stopPropagation(); copyToClipboard(url, btn); };
+          })(cardUrl, btnCard));
+          btnRow.appendChild(btnCard);
+
+          // Copy text view URL button
+          var btnText = document.createElement('button');
+          btnText.textContent = 'Copy Text Link';
+          btnText.style.cssText = 'border:none;border-radius:999px;padding:10px 16px;background:linear-gradient(135deg,var(--spm-primary),var(--spm-accent));color:#fff;font-weight:700;font-size:1rem;cursor:pointer;';
+          btnText.setAttribute('data-url', textUrl);
+          btnText.addEventListener('click', (function(url, btn) {
+            return function(e) { e.stopPropagation(); copyToClipboard(url, btn); };
+          })(textUrl, btnText));
+          btnRow.appendChild(btnText);
+
+          card.appendChild(btnRow);
+          root.appendChild(card);
+        }
+      }
+
       // ── Load ──────────────────────────────────────────────────────────
       // Replaces google.script.run with callServer() fetch.
+      // Routes to admin, text-only, or card view based on URL params.
 
       function load() {
         setStatus("Loading events\u2026");
-        callServer('getUpcomingEvents', LOCATION_FILTER)
+        // Admin page fetches all events (no filter) to extract locations
+        var filter = WANTS_ADMIN ? '' : LOCATION_FILTER;
+        callServer('getUpcomingEvents', filter)
           .then(function(resp) {
             if (resp && resp.success) {
-              if (WANTS_TEXT_ONLY) {
+              if (WANTS_ADMIN) {
+                renderAdmin(resp.data);
+              } else if (WANTS_TEXT_ONLY) {
                 renderTextOnly(resp.data);
               } else {
                 render(resp.data);
