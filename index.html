@@ -365,11 +365,13 @@
         box-shadow: 0 6px 20px rgba(0, 0, 0, 0.15);
       }
 
-      /* Admin cards: override grid layout, use simple block, centered */
+      /* Admin cards: override grid layout, use simple block, centered.
+         !important needed because body.desktop .card sets text-align:left
+         at the same specificity and appears later in the stylesheet. */
       .card.admin-card {
         display: block !important;
         grid-template-columns: none !important;
-        text-align: center;
+        text-align: center !important;
       }
       .card.admin-card .admin-addr {
         font-size: 0.75rem;
