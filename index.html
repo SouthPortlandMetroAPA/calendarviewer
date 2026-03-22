@@ -1,0 +1,731 @@
+<!DOCTYPE html>
+<html>
+  <head>
+    <meta charset="UTF-8" />
+    <title>South Portland Metro APA — Events</title>
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+
+    <style>
+      :root {
+        --spm-primary: #ea002a;
+        --spm-accent: #0031a1;
+        --bg: #f5f5f5;
+        --card: #ffffff;
+        --border: #e1e1e1;
+        --text: #1f1f1f;
+        --muted: #666;
+        --today-bg: #fff3cd;
+        --today-border: #f3d58a;
+      }
+
+      * {
+        box-sizing: border-box;
+      }
+
+      html,
+      body {
+        margin: 0;
+        padding: 0;
+        width: 100%;
+        background: var(--bg);
+        color: var(--text);
+        font-family: system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI",
+          Roboto, sans-serif;
+        font-size: 36px; /* 200% — mobile base for GAS iframe parity */
+      }
+
+      .page {
+        width: 100vw;
+        padding: 16px;
+      }
+
+      header {
+        width: 100%;
+        border-radius: 22px;
+        padding: 22px 20px 20px;
+        color: #fff;
+        background: linear-gradient(135deg, var(--spm-primary), var(--spm-accent));
+        box-shadow: 0 6px 18px rgba(0, 0, 0, 0.25);
+        text-align: center;
+        margin-bottom: 18px;
+      }
+
+      .title {
+        margin: 0;
+        font-size: 1.5rem;
+        font-weight: 900;
+        line-height: 1.08;
+      }
+
+      .subtitle {
+        margin: 10px 0 0;
+        font-size: 1.2rem;
+        opacity: 0.95;
+      }
+
+      .status {
+        margin: 14px 0 0;
+        font-size: 1.15rem;
+        opacity: 0.95;
+      }
+
+      .hint {
+        margin-top: 14px;
+        font-size: 1.1rem;
+        opacity: 0.9;
+      }
+
+      .month-sep {
+        width: 100%;
+        border-radius: 20px;
+        padding: 16px 18px;
+        margin: 22px 0 16px;
+        background: linear-gradient(
+          135deg,
+          rgba(234, 0, 42, 0.14),
+          rgba(0, 49, 161, 0.14)
+        );
+        border: 1px solid rgba(0, 0, 0, 0.12);
+        box-shadow: 0 2px 6px rgba(0, 0, 0, 0.1);
+        text-align: center;
+      }
+
+      .month-pill {
+        display: inline-block;
+        padding: 10px 20px;
+        border-radius: 999px;
+        background: linear-gradient(135deg, var(--spm-primary), var(--spm-accent));
+        color: #fff;
+        font-weight: 900;
+        letter-spacing: 0.1em;
+        font-size: 1.1rem;
+        white-space: nowrap;
+        box-shadow: 0 3px 10px rgba(0, 0, 0, 0.25);
+      }
+
+      .card {
+        background: var(--card);
+        border: 1px solid var(--border);
+        border-radius: 22px;
+        padding: 20px 20px 18px;
+        box-shadow: 0 3px 10px rgba(0, 0, 0, 0.12);
+        margin-bottom: 18px;
+        cursor: pointer;
+        text-align: center;
+      }
+
+      .card.today {
+        background: var(--today-bg);
+        border-color: var(--today-border);
+      }
+
+      .date {
+        color: var(--spm-primary);
+        font-weight: 900;
+        letter-spacing: 0.12em;
+        font-size: 1.2rem;
+        margin-bottom: 14px;
+        text-transform: uppercase;
+      }
+
+      .time {
+        font-size: 1.35rem;
+        font-weight: 700;
+        margin: 0 0 16px;
+        white-space: pre-line;
+      }
+
+      .event-title {
+        font-size: 1.6rem;
+        font-weight: 900;
+        margin: 0 0 16px;
+        white-space: pre-line;
+      }
+
+      .locations {
+        margin-top: 10px;
+      }
+
+      .loc {
+        margin-top: 16px;
+      }
+
+      .loc-name {
+        font-weight: 500;
+        font-size: 1.3rem;
+      }
+
+      .loc-address {
+        font-style: italic;
+        font-size: 1.15rem;
+        color: var(--muted);
+        margin-top: 6px;
+      }
+
+      .time-list {
+        display: flex;
+        flex-direction: column;
+        gap: 14px;
+        margin-top: 18px;
+        align-items: center;
+      }
+
+      .time-chip {
+        display: inline-block;
+        width: fit-content;
+        max-width: 100%;
+        text-align: center;
+        padding: 14px 18px;
+        border-radius: 999px;
+        background: rgba(0, 0, 0, 0.04);
+        border: 1px solid rgba(0, 0, 0, 0.14);
+        box-shadow: 0 2px 6px rgba(0, 0, 0, 0.1);
+        font-size: 1.2rem;
+        font-weight: 500;
+        line-height: 1.3;
+      }
+
+      .modal {
+        position: fixed;
+        inset: 0;
+        background: rgba(0, 0, 0, 0.68);
+        display: none;
+        align-items: center;
+        justify-content: center;
+        z-index: 9999;
+        padding: 20px;
+      }
+
+      .modal-panel {
+        width: 100%;
+        max-width: 900px;
+        background: #fff;
+        border-radius: 22px;
+        padding: 22px 22px 20px;
+        box-shadow: 0 16px 40px rgba(0, 0, 0, 0.45);
+        text-align: center;
+      }
+
+      .modal-title {
+        font-weight: 900;
+        margin: 0 0 16px;
+        font-size: 1.45rem;
+        white-space: pre-line;
+      }
+
+      .modal-body {
+        white-space: pre-wrap;
+        font-size: 1.25rem;
+        line-height: 1.55;
+        color: #222;
+        text-align: left;
+      }
+
+      .modal-close {
+        margin-top: 18px;
+        width: 100%;
+        border: none;
+        border-radius: 999px;
+        padding: 16px 18px;
+        background: var(--spm-primary);
+        color: #fff;
+        font-weight: 900;
+        font-size: 1.25rem;
+        cursor: pointer;
+      }
+
+      /* ================================================================
+         STANDALONE MOBILE ZOOM
+         ================================================================
+         Standalone (GitHub Pages) apps add zoom: 0.44 for mobile to
+         match GAS iframe scaling. Without this, the 36px base font
+         would be enormous on a real phone screen.
+         ================================================================ */
+
+      body.mobile .page {
+        zoom: 0.44;
+      }
+
+      /* ================================================================
+         TABLET OVERRIDES
+         ================================================================ */
+
+      body.tablet {
+        background: #ebebeb;
+      }
+
+      body.tablet .page {
+        max-width: 660px;
+        margin: 0 auto;
+        padding: 14px;
+        width: 100%;
+      }
+
+      body.tablet header {
+        border-radius: 18px;
+        padding: 18px 18px 16px;
+        margin-bottom: 14px;
+      }
+
+      body.tablet .title { font-size: 42px; }
+      body.tablet .subtitle { font-size: 34px; }
+      body.tablet .status { font-size: 30px; }
+      body.tablet .hint { font-size: 28px; }
+
+      body.tablet .month-sep {
+        border-radius: 16px;
+        padding: 12px 14px;
+        margin: 18px 0 12px;
+      }
+      body.tablet .month-pill { font-size: 28px; padding: 8px 16px; }
+
+      body.tablet .card {
+        border-radius: 18px;
+        padding: 16px 18px 14px;
+        margin-bottom: 14px;
+      }
+
+      body.tablet .date { font-size: 32px; margin-bottom: 10px; }
+      body.tablet .time { font-size: 34px; margin-bottom: 12px; }
+      body.tablet .event-title { font-size: 40px; margin-bottom: 12px; }
+      body.tablet .loc-name { font-size: 32px; }
+      body.tablet .loc-address { font-size: 28px; }
+      body.tablet .time-chip { font-size: 28px; padding: 10px 14px; }
+      body.tablet .time-list { gap: 10px; margin-top: 14px; }
+
+      body.tablet .modal-panel { border-radius: 18px; padding: 18px 18px 16px; }
+      body.tablet .modal-title { font-size: 36px; }
+      body.tablet .modal-body { font-size: 30px; }
+      body.tablet .modal-close { font-size: 30px; padding: 14px 16px; }
+
+      /* ================================================================
+         DESKTOP OVERRIDES
+         ================================================================ */
+
+      body.desktop {
+        background: #e8e8e8;
+      }
+
+      body.desktop .page {
+        max-width: 900px;
+        margin: 0 auto;
+        padding: 20px 30px;
+        width: 100%;
+      }
+
+      body.desktop header {
+        border-radius: 14px;
+        padding: 18px 24px 16px;
+        margin-bottom: 20px;
+        box-shadow: 0 4px 14px rgba(0, 0, 0, 0.2);
+      }
+      body.desktop .title { font-size: 30px; }
+      body.desktop .subtitle { font-size: 20px; }
+      body.desktop .status { font-size: 15px; margin-top: 10px; }
+      body.desktop .hint { font-size: 14px; margin-top: 10px; }
+
+      body.desktop .month-sep {
+        background: none;
+        border: none;
+        box-shadow: none;
+        border-radius: 0;
+        padding: 0;
+        margin: 20px 0 12px;
+        display: flex;
+        align-items: center;
+        gap: 16px;
+      }
+      body.desktop .month-sep::before,
+      body.desktop .month-sep::after {
+        content: "";
+        flex: 1;
+        height: 1px;
+        background: var(--border);
+      }
+      body.desktop .month-pill {
+        font-size: 15px;
+        padding: 6px 20px;
+        box-shadow: none;
+        background: linear-gradient(135deg, var(--spm-primary), var(--spm-accent));
+      }
+
+      body.desktop .card {
+        display: grid;
+        grid-template-columns: 130px 1fr;
+        column-gap: 16px;
+        text-align: left;
+        border-radius: 14px;
+        padding: 14px 18px;
+        margin-bottom: 12px;
+        box-shadow: 0 2px 8px rgba(0, 0, 0, 0.1);
+        transition: transform 0.15s ease, box-shadow 0.15s ease;
+      }
+      body.desktop .card:hover {
+        transform: translateY(-2px);
+        box-shadow: 0 6px 20px rgba(0, 0, 0, 0.15);
+      }
+
+      body.desktop .date {
+        grid-column: 1;
+        grid-row: 1 / 5;
+        align-self: center;
+        font-size: 15px;
+        margin-bottom: 0;
+        letter-spacing: 0.08em;
+      }
+      body.desktop .event-title {
+        grid-column: 2;
+        grid-row: 1;
+        font-size: 20px;
+        margin: 0 0 2px;
+      }
+      body.desktop .time { display: none; }
+      body.desktop .locations {
+        grid-column: 2;
+        grid-row: 2;
+        margin-top: 0;
+      }
+      body.desktop .loc { margin-top: 2px; }
+      body.desktop .loc-name { font-size: 15px; }
+      body.desktop .loc-address { display: none; }
+
+      body.desktop .time-list { display: none; }
+
+      body.desktop .modal-panel {
+        max-width: 560px;
+        border-radius: 14px;
+        padding: 20px 22px 18px;
+      }
+      body.desktop .modal-title { font-size: 20px; }
+      body.desktop .modal-body { font-size: 15px; }
+      body.desktop .modal-loc {
+        margin: 12px 0;
+        padding: 10px 14px;
+        background: rgba(0, 49, 161, 0.06);
+        border-left: 3px solid var(--spm-accent);
+        border-radius: 0 8px 8px 0;
+      }
+      body.desktop .modal-loc-name {
+        font-weight: 700;
+        font-size: 15px;
+        color: var(--text);
+      }
+      body.desktop .modal-loc-addr {
+        font-size: 13px;
+        margin-top: 3px;
+      }
+      body.desktop .modal-loc-addr a {
+        color: var(--spm-accent);
+        text-decoration: none;
+      }
+      body.desktop .modal-loc-addr a:hover {
+        text-decoration: underline;
+      }
+      body.desktop .modal-close {
+        font-size: 15px;
+        padding: 12px 18px;
+        max-width: 300px;
+        margin: 14px auto 0;
+        border-radius: 10px;
+      }
+      body.desktop .modal-close:hover {
+        filter: brightness(1.1);
+      }
+    </style>
+  </head>
+
+  <body>
+    <div class="page">
+      <header>
+        <h1 class="title">South Portland Metro APA</h1>
+        <div class="subtitle">Events Calendar</div>
+        <div class="status" id="statusText">Loading events…</div>
+      </header>
+
+      <div id="list"></div>
+    </div>
+
+    <!-- Modal -->
+    <div class="modal" id="modal">
+      <div class="modal-panel">
+        <div class="modal-title" id="modalTitle">Event Details</div>
+        <div class="modal-body" id="modalBody"></div>
+        <button class="modal-close" type="button" onclick="closeModal()">
+          CLOSE
+        </button>
+      </div>
+    </div>
+
+    <script>
+      // ================================================================
+      // STANDALONE FRONTEND — CalendarViewer
+      // ================================================================
+      // This file replaces the GAS-served Index.html for standalone use
+      // (GitHub Pages, Facebook in-app browser, etc.). Instead of
+      // google.script.run, it calls the GAS backend via fetch() through
+      // a Cloudflare Worker CORS proxy.
+      //
+      // Go-forward stack:
+      //   Frontend (this file) → Cloudflare Worker → GAS doPost (Api.js)
+      // ================================================================
+
+      // ── API Configuration ─────────────────────────────────────────────
+      // Cloudflare Worker CORS proxy URL.
+      // TODO: Update after wrangler deploy if URL differs.
+      var API_URL = 'https://calendarviewer.spmapa.workers.dev';
+
+      // ── Location filter from URL params ───────────────────────────────
+      // Replaces the GAS template injection: const LOCATION_FILTER = "<?= LOCATION_FILTER ?>";
+      // Supports both ?location=X and ?loc=X (same as legacy doGet).
+      var params = new URLSearchParams(window.location.search);
+      var LOCATION_FILTER = params.get('location') || params.get('loc') || '';
+
+      // ── callServer — fetch() replacement for google.script.run ────────
+      // Posts a JSON action to the Cloudflare Worker, which forwards to
+      // GAS doPost (Api.js). Returns a Promise resolving to the JSON response.
+      function callServer(action, locationFilter) {
+        return fetch(API_URL, {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({
+            action: action,
+            locationFilter: locationFilter || ''
+          })
+        }).then(function(response) {
+          if (!response.ok) throw new Error('Network error: ' + response.status);
+          return response.json();
+        });
+      }
+
+      // ── UI Helpers ────────────────────────────────────────────────────
+
+      function setStatus(text) {
+        document.getElementById("statusText").textContent = text || "";
+      }
+
+      // Title formatting:
+      // "\" becomes newline
+      // " - " becomes newline (except on desktop)
+      function normalizeTitle(title) {
+        var t = String(title || "");
+        var result = t.replace(/\\/g, "\n");
+        if (document.body.classList.contains("desktop")) return result;
+        return result.replace(/\s-\s/g, "\n");
+      }
+
+      function esc(s) {
+        var d = document.createElement("div");
+        d.textContent = String(s || "");
+        return d.innerHTML;
+      }
+
+      function openModal(title, body, isHtml) {
+        document.getElementById("modalTitle").textContent =
+          normalizeTitle(title) || "Event Details";
+        var el = document.getElementById("modalBody");
+        if (isHtml) {
+          el.innerHTML = body || "No details provided";
+        } else {
+          el.textContent = body || "No details provided";
+        }
+        document.getElementById("modal").style.display = "flex";
+      }
+
+      function closeModal() {
+        document.getElementById("modal").style.display = "none";
+      }
+
+      document.getElementById("modal").addEventListener("click", function (e) {
+        if (e.target && e.target.id === "modal") closeModal();
+      });
+
+      // ── Render ────────────────────────────────────────────────────────
+      // Identical to legacy Index.html render function.
+
+      function render(data) {
+        var root = document.getElementById("list");
+        root.innerHTML = "";
+
+        if (!Array.isArray(data) || data.length === 0) {
+          setStatus("No upcoming events found");
+          return;
+        }
+
+        if (LOCATION_FILTER && LOCATION_FILTER.trim()) {
+          setStatus("Filtered \u2022 " + LOCATION_FILTER.trim());
+        } else {
+          setStatus("Up-to-date \u2022 Scroll for more");
+        }
+
+        data.forEach(function(item) {
+          if (item.type === "month") {
+            var wrap = document.createElement("div");
+            wrap.className = "month-sep";
+
+            var pill = document.createElement("div");
+            pill.className = "month-pill";
+            pill.textContent = item.label || "";
+
+            wrap.appendChild(pill);
+            root.appendChild(wrap);
+            return;
+          }
+
+          var card = document.createElement("div");
+          card.className =
+            "card" + (item.dateLabel === "TODAY" ? " today" : "");
+
+          var date = document.createElement("div");
+          date.className = "date";
+          date.textContent = item.dateLabel || "";
+          card.appendChild(date);
+
+          if (item.headerTime) {
+            var time = document.createElement("div");
+            time.className = "time";
+            time.textContent = item.headerTime;
+            card.appendChild(time);
+          }
+
+          var title = document.createElement("div");
+          title.className = "event-title";
+          title.textContent = normalizeTitle(item.title || "");
+          card.appendChild(title);
+
+          var locWrap = document.createElement("div");
+          locWrap.className = "locations";
+
+          (item.locations || []).forEach(function(loc) {
+            var locDiv = document.createElement("div");
+            locDiv.className = "loc";
+
+            var name = document.createElement("div");
+            name.className = "loc-name";
+            name.textContent = loc && loc.name ? loc.name : "";
+            locDiv.appendChild(name);
+
+            if (loc && loc.address) {
+              var addr = document.createElement("div");
+              addr.className = "loc-address";
+              addr.textContent = loc.address;
+              locDiv.appendChild(addr);
+            }
+
+            locWrap.appendChild(locDiv);
+          });
+
+          card.appendChild(locWrap);
+
+          if (
+            item.showTimeBullets &&
+            Array.isArray(item.timeBullets) &&
+            item.timeBullets.length
+          ) {
+            var list = document.createElement("div");
+            list.className = "time-list";
+
+            item.timeBullets.forEach(function(t) {
+              var chip = document.createElement("div");
+              chip.className = "time-chip";
+              chip.textContent = t || "";
+              list.appendChild(chip);
+            });
+
+            card.appendChild(list);
+          }
+
+          card.addEventListener("click", function () {
+            if (document.body.classList.contains("desktop")) {
+              var html = "";
+              if (item.headerTime) {
+                html += esc(item.headerTime).replace(/\n/g, "<br>") + "<br>";
+              }
+              if (
+                item.showTimeBullets &&
+                item.timeBullets &&
+                item.timeBullets.length
+              ) {
+                html +=
+                  item.timeBullets.map(esc).join("<br>") + "<br>";
+              }
+              (item.locations || []).forEach(function (loc) {
+                if (!loc || !loc.name) return;
+                html += '<div class="modal-loc">';
+                html +=
+                  '<div class="modal-loc-name">' + esc(loc.name) + "</div>";
+                if (loc.address) {
+                  var q = encodeURIComponent(loc.name + ", " + loc.address);
+                  html +=
+                    '<div class="modal-loc-addr"><a href="https://www.google.com/maps/search/?api=1&query=' +
+                    q +
+                    '" target="_blank">' +
+                    esc(loc.address) +
+                    "</a></div>";
+                }
+                html += "</div>";
+              });
+              if (item.description) {
+                html +=
+                  '<div style="margin-top:10px;white-space:pre-wrap">' +
+                  esc(item.description) +
+                  "</div>";
+              }
+              openModal(item.title, html || "No details provided", true);
+            } else {
+              openModal(item.title, item.description);
+            }
+          });
+
+          root.appendChild(card);
+        });
+      }
+
+      // ── Load ──────────────────────────────────────────────────────────
+      // Replaces google.script.run with callServer() fetch.
+
+      function load() {
+        setStatus("Loading events\u2026");
+        callServer('getUpcomingEvents', LOCATION_FILTER)
+          .then(function(resp) {
+            if (resp && resp.success) {
+              render(resp.data);
+            } else {
+              setStatus("Could not load events: " + ((resp && resp.error) || "Unknown error"));
+            }
+          })
+          .catch(function(err) {
+            setStatus("Could not load events right now");
+          });
+      }
+
+      document.addEventListener("DOMContentLoaded", load);
+
+      // ================================================================
+      // DEVICE DETECTION — GAS Responsive UI Standard
+      // ================================================================
+      // Uses screen.width (physical device pixels) to detect device
+      // category and apply a CSS class to <body>.
+      // Mobile gets zoom: 0.44 for standalone apps (see CSS above).
+      // ================================================================
+      (function () {
+        var sw = screen.width;
+        var hasTouch = navigator.maxTouchPoints > 0;
+
+        var deviceClass;
+        if (sw < 768) {
+          deviceClass = "mobile";
+        } else if (sw < 1200) {
+          deviceClass = "tablet";
+        } else {
+          if (hasTouch && !window.matchMedia("(pointer: fine)").matches) {
+            deviceClass = "tablet";
+          } else {
+            deviceClass = "desktop";
+          }
+        }
+
+        document.body.classList.add(deviceClass);
+      })();
+    </script>
+  </body>
+</html>
