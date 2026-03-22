@@ -479,6 +479,7 @@
       // Supports both ?location=X and ?loc=X (same as legacy doGet).
       var params = new URLSearchParams(window.location.search);
       var LOCATION_FILTER = params.get('location') || params.get('loc') || '';
+      var WANTS_TEXT_ONLY = (params.get('text') === '1');
 
       // ── callServer — fetch() replacement for google.script.run ────────
       // Posts a JSON action to the Cloudflare Worker, which forwards to
@@ -680,6 +681,106 @@
         });
       }
 
+      // ── Text-Only Rendering ────────────────────────────────────────────
+      // Client-side equivalent of Code.js buildTextOnlyFilteredOneLinePerDay_
+      // and buildTextOnlyOutput_. Renders plain text into a <pre> block
+      // instead of event cards.
+
+      function toSingleString(s) {
+        return String(s || '').replace(/\r?\n/g, ' ').replace(/\s+/g, ' ').trim();
+      }
+
+      function getLocationHeader(renderList, locationFilter) {
+        var f = String(locationFilter || '').trim();
+        var fLower = f.toLowerCase();
+        for (var i = 0; i < (renderList || []).length; i++) {
+          var item = renderList[i];
+          if (!item || item.type !== 'event') continue;
+          var locs = item.locations || [];
+          for (var j = 0; j < locs.length; j++) {
+            var nm = String((locs[j] && locs[j].name) || '').trim();
+            var ad = String((locs[j] && locs[j].address) || '').trim();
+            if (nm && nm.toLowerCase().indexOf(fLower) !== -1) {
+              return { name: nm, address: ad.replace(/,?\s*USA\s*$/i, '').trim() };
+            }
+          }
+        }
+        return { name: f, address: '' };
+      }
+
+      function renderTextOnly(data) {
+        // Hide the card UI, show a <pre> block instead
+        document.querySelector('header').style.display = 'none';
+        document.getElementById('list').style.display = 'none';
+
+        var pre = document.createElement('pre');
+        pre.style.cssText = 'font-family:system-ui,sans-serif;font-size:14px;padding:20px;margin:0;white-space:pre-wrap;line-height:1.6;';
+
+        if (!Array.isArray(data) || data.length === 0) {
+          pre.textContent = 'No upcoming events found.\n';
+          document.querySelector('.page').appendChild(pre);
+          return;
+        }
+
+        var rows = [];
+
+        for (var i = 0; i < data.length; i++) {
+          var item = data[i];
+          if (!item || item.type !== 'event') continue;
+
+          var titleSingle = toSingleString(item.title);
+
+          // Single-day event
+          if (!item.showTimeBullets) {
+            var date = toSingleString(item.dateLabel);
+            var time = toSingleString(item.headerTime);
+            if (time) {
+              rows.push(date + ', ' + time + ', ' + titleSingle);
+            } else {
+              rows.push(date + ', ' + titleSingle);
+            }
+            continue;
+          }
+
+          // Multi-day timed: expand each time bullet
+          if (Array.isArray(item.timeBullets) && item.timeBullets.length) {
+            for (var b = 0; b < item.timeBullets.length; b++) {
+              var line = String(item.timeBullets[b] || '').trim();
+              if (!line) continue;
+              var parts = line.split('\u2022'); // bullet character •
+              var left = toSingleString(parts[0] || '');
+              var right = toSingleString((parts.length > 1 ? parts[1] : '') || '');
+              if (left && right) {
+                rows.push(left + ', ' + right + ', ' + titleSingle);
+              } else if (left) {
+                rows.push(left + ', ' + titleSingle);
+              }
+            }
+            continue;
+          }
+
+          // Multi-day all-day: expand each day label
+          var dayLabels = item.__dayLabels || [];
+          for (var d = 0; d < dayLabels.length; d++) {
+            var dl = toSingleString(dayLabels[d]);
+            if (dl) rows.push(dl + ', ' + titleSingle);
+          }
+        }
+
+        // Build output
+        var out = [];
+        if (LOCATION_FILTER) {
+          var hdr = getLocationHeader(data, LOCATION_FILTER);
+          out.push(hdr.name);
+          if (hdr.address) out.push(hdr.address);
+          out.push('---');
+        }
+        for (var r = 0; r < rows.length; r++) out.push(rows[r]);
+
+        pre.textContent = out.join('\n') + '\n';
+        document.querySelector('.page').appendChild(pre);
+      }
+
       // ── Load ──────────────────────────────────────────────────────────
       // Replaces google.script.run with callServer() fetch.
 
@@ -688,7 +789,11 @@
         callServer('getUpcomingEvents', LOCATION_FILTER)
           .then(function(resp) {
             if (resp && resp.success) {
-              render(resp.data);
+              if (WANTS_TEXT_ONLY) {
+                renderTextOnly(resp.data);
+              } else {
+                render(resp.data);
+              }
             } else {
               setStatus("Could not load events: " + ((resp && resp.error) || "Unknown error"));
             }
