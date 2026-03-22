@@ -365,6 +365,13 @@
         box-shadow: 0 6px 20px rgba(0, 0, 0, 0.15);
       }
 
+      /* Admin cards: override grid layout, use simple block */
+      .card.admin-card {
+        display: block !important;
+        grid-template-columns: none !important;
+        text-align: left;
+      }
+
       body.desktop .date {
         grid-column: 1;
         grid-row: 1 / 5;
@@ -843,9 +850,8 @@
           var textUrl = BASE_URL + '?text=1&location=' + encodeURIComponent(loc.name);
 
           var card = document.createElement('div');
-          card.className = 'card';
+          card.className = 'card admin-card';
           card.style.cursor = 'default';
-          card.style.textAlign = 'left';
 
           // Location name as clickable link
           var nameLink = document.createElement('a');
