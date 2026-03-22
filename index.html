@@ -374,13 +374,13 @@
         text-align: center !important;
       }
       .card.admin-card .admin-addr {
-        font-size: 0.75rem;
+        font-size: 0.9rem;
         color: var(--muted);
         font-style: italic;
         margin-top: 4px;
       }
       body.desktop .card.admin-card .admin-addr {
-        font-size: 13px;
+        font-size: 14px;
       }
 
       body.desktop .date {
@@ -833,14 +833,6 @@
         return locations;
       }
 
-      function copyToClipboard(text, btn) {
-        navigator.clipboard.writeText(text).then(function() {
-          var orig = btn.textContent;
-          btn.textContent = 'Copied!';
-          setTimeout(function() { btn.textContent = orig; }, 1500);
-        });
-      }
-
       function renderAdmin(data) {
         var locations = extractLocations(data);
 
@@ -879,29 +871,25 @@
             card.appendChild(addr);
           }
 
-          // Button row
+          // Link row
           var btnRow = document.createElement('div');
           btnRow.style.cssText = 'display:flex;gap:10px;margin-top:14px;flex-wrap:wrap;justify-content:center;';
 
-          // Copy card view URL button
-          var btnCard = document.createElement('button');
-          btnCard.textContent = 'Copy Card Link';
-          btnCard.style.cssText = 'border:none;border-radius:999px;padding:10px 16px;background:var(--spm-accent);color:#fff;font-weight:700;font-size:1rem;cursor:pointer;';
-          btnCard.setAttribute('data-url', cardUrl);
-          btnCard.addEventListener('click', (function(url, btn) {
-            return function(e) { e.stopPropagation(); copyToClipboard(url, btn); };
-          })(cardUrl, btnCard));
-          btnRow.appendChild(btnCard);
+          // Card view link (opens in new tab)
+          var linkCard = document.createElement('a');
+          linkCard.href = cardUrl;
+          linkCard.target = '_blank';
+          linkCard.textContent = 'Card View';
+          linkCard.style.cssText = 'display:inline-block;border:none;border-radius:999px;padding:10px 16px;background:var(--spm-accent);color:#fff;font-weight:700;font-size:1rem;cursor:pointer;text-decoration:none;';
+          btnRow.appendChild(linkCard);
 
-          // Copy text view URL button
-          var btnText = document.createElement('button');
-          btnText.textContent = 'Copy Text Link';
-          btnText.style.cssText = 'border:none;border-radius:999px;padding:10px 16px;background:linear-gradient(135deg,var(--spm-primary),var(--spm-accent));color:#fff;font-weight:700;font-size:1rem;cursor:pointer;';
-          btnText.setAttribute('data-url', textUrl);
-          btnText.addEventListener('click', (function(url, btn) {
-            return function(e) { e.stopPropagation(); copyToClipboard(url, btn); };
-          })(textUrl, btnText));
-          btnRow.appendChild(btnText);
+          // Text view link (opens in new tab)
+          var linkText = document.createElement('a');
+          linkText.href = textUrl;
+          linkText.target = '_blank';
+          linkText.textContent = 'Text View';
+          linkText.style.cssText = 'display:inline-block;border:none;border-radius:999px;padding:10px 16px;background:linear-gradient(135deg,var(--spm-primary),var(--spm-accent));color:#fff;font-weight:700;font-size:1rem;cursor:pointer;text-decoration:none;';
+          btnRow.appendChild(linkText);
 
           card.appendChild(btnRow);
           root.appendChild(card);
