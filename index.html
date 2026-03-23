@@ -538,6 +538,19 @@
         return d.innerHTML;
       }
 
+      // Escape HTML, then convert URLs to clickable links.
+      function linkify(s) {
+        var escaped = esc(s);
+        // Match URLs (http, https, or www.) and convert to <a> tags
+        return escaped.replace(
+          /(?:https?:\/\/|www\.)[^\s<]+/gi,
+          function(url) {
+            var href = url.indexOf('http') !== 0 ? 'https://' + url : url;
+            return '<a href="' + href + '" target="_blank" rel="noopener" style="color:var(--spm-accent);word-break:break-all;">' + url + '</a>';
+          }
+        );
+      }
+
       function openModal(title, body, isHtml) {
         document.getElementById("modalTitle").textContent =
           normalizeTitle(title) || "Event Details";
@@ -686,12 +699,12 @@
               if (item.description) {
                 html +=
                   '<div style="margin-top:10px;white-space:pre-wrap">' +
-                  esc(item.description) +
+                  linkify(item.description) +
                   "</div>";
               }
               openModal(item.title, html || "No details provided", true);
             } else {
-              openModal(item.title, item.description);
+              openModal(item.title, item.description ? linkify(item.description) : '', true);
             }
           });
 
