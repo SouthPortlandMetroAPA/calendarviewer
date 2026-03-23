@@ -31,7 +31,7 @@
         color: var(--text);
         font-family: system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI",
           Roboto, sans-serif;
-        font-size: 36px; /* 200% — mobile base for GAS iframe parity */
+        font-size: 16px; /* Standalone: real mobile font size, no GAS iframe */
       }
 
       .page {
@@ -235,16 +235,12 @@
       }
 
       /* ================================================================
-         STANDALONE MOBILE ZOOM
+         MOBILE — no zoom needed
          ================================================================
-         Standalone (GitHub Pages) apps add zoom: 0.44 for mobile to
-         match GAS iframe scaling. Without this, the 36px base font
-         would be enormous on a real phone screen.
+         The GAS version uses 36px base font because the GAS iframe
+         shrinks it. This standalone version runs in a real viewport,
+         so we use 16px base and no zoom hack. Full-width, normal CSS.
          ================================================================ */
-
-      body.mobile .page {
-        zoom: 0.44;
-      }
 
       /* ================================================================
          TABLET OVERRIDES
