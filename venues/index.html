@@ -252,7 +252,8 @@
         });
         m.bindPopup('<b>' + esc(v.n) + '</b><span class="pc">' + esc(v.a) + '<br>' + esc(v.c) +
           '</span><a href="' + dirs(v) + '" target="_blank" rel="noopener">Directions</a>' +
-          '<a href="' + gmap(v) + '" target="_blank" rel="noopener">Google Maps</a>');
+          '<a href="' + gmap(v) + '" target="_blank" rel="noopener">Google Maps</a>',
+          { autoPan: false, closeButton: true });
         m.on('click', function () { select(i, false); });
         markers.push(m);
       });
@@ -292,8 +293,8 @@
           cards[i].setAttribute('aria-current', 'true');
           if (!fromCard) cards[i].scrollIntoView({ block:'nearest', behavior:'smooth' });
         }
-        centerOn(m.getLatLng());
         m.openPopup();
+        centerOn(m.getLatLng());
       }
 
       function visible() {
