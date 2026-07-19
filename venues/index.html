@@ -127,15 +127,31 @@
     <script>
       /* Device tier FIRST: the CSS custom properties above depend on the body
          class, and Leaflet reads element sizes at init. */
-      (function () {
-        var sw = screen.width, hasTouch = navigator.maxTouchPoints > 0, cls;
-        if (sw < 768) cls = 'mobile';
-        else if (sw < 1200) cls = 'tablet';
-        else cls = (hasTouch && !window.matchMedia('(pointer: fine)').matches) ? 'tablet' : 'desktop';
-        document.body.classList.add(cls);
-      })();
-      var TIER = document.body.classList.contains('mobile') ? 'mobile'
-               : document.body.classList.contains('tablet') ? 'tablet' : 'desktop';
+      /* Same tiers and class names as CalendarViewer, with two deliberate
+         differences, both of which that page does not need because it runs
+         effectively full-screen:
+
+         1. screen.width is the DISPLAY, not the window. A desktop user with a
+            half-width browser window would get the desktop rail crammed into
+            600 px. We take the smaller of screen and viewport, so the layout
+            follows the space actually available.
+         2. screen.width can be 0 in embedded and headless contexts — measured,
+            not theorised — and 0 < 768 silently means "mobile". Falling back to
+            innerWidth stops a desktop being served a phone layout.
+
+         Touch detection is unchanged: a large tablet still gets finger-sized
+         targets even though it is wide. */
+      function tierOf() {
+        var sw = screen.width || 0;
+        var vw = window.innerWidth || sw || 1024;
+        var w  = sw > 0 ? Math.min(sw, vw) : vw;
+        var hasTouch = navigator.maxTouchPoints > 0;
+        if (w < 768) return 'mobile';
+        if (w < 1200) return 'tablet';
+        return (hasTouch && !window.matchMedia('(pointer: fine)').matches) ? 'tablet' : 'desktop';
+      }
+      var TIER = tierOf();
+      document.body.classList.add(TIER);
 
       var AREAS = [
   {k:"milwaukie",label:"Milwaukie"},
@@ -344,6 +360,24 @@
       if (TIER === 'mobile') { sheet(false); map.on('click', function(){ sheet(false); }); }
 
       render();
+
+      /* A resized window crossing a tier boundary must re-lay-out. Debounced,
+         and only acts on an actual tier CHANGE so ordinary resizing does not
+         rebuild 67 rows on every frame. */
+      var rzT;
+      window.addEventListener('resize', function () {
+        clearTimeout(rzT);
+        rzT = setTimeout(function () {
+          var t = tierOf();
+          if (t === TIER) { map.invalidateSize(); return; }
+          document.body.classList.remove('mobile', 'tablet', 'desktop');
+          document.body.classList.add(t);
+          TIER = t;
+          if (TIER === 'mobile') sheet(false); else rail.classList.remove('peek');
+          map.invalidateSize();
+          render();
+        }, 180);
+      });
     </script>
   </body>
 </html>
