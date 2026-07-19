@@ -403,7 +403,32 @@
       body.desktop .loc-name { font-size: 15px; }
       body.desktop .loc-address { display: none; }
 
+      /* Desktop hides per-day time bullets by design — that detail lives in the
+         click-through modal, which is what keeps the desktop list scannable.
+         Sub-event bullets are NOT that. When EventHorizon expands one
+         poolplayers entry into several calendar events, the viewer folds them
+         back into a single card; if the children were hidden here too, that
+         card would say "World Pool Championships, Aug 4 – Aug 15" and silently
+         drop the three championships it is made of. Consolidating must not cost
+         information, so structure stays visible and only detail collapses. */
       body.desktop .time-list { display: none; }
+      body.desktop .time-list.is-children {
+        display: flex;
+        grid-column: 2;
+        grid-row: 3;
+        flex-direction: column;
+        align-items: flex-start;
+        gap: 4px;
+        margin-top: 8px;
+      }
+      body.desktop .time-list.is-children .time-chip {
+        font-size: 13px;
+        font-weight: 400;
+        padding: 5px 12px;
+        box-shadow: none;
+        background: rgba(0, 0, 0, 0.03);
+        text-align: left;
+      }
 
       body.desktop .modal-panel {
         max-width: 560px;
@@ -666,7 +691,12 @@
             item.timeBullets.length
           ) {
             var list = document.createElement("div");
-            list.className = "time-list";
+            // bulletKind distinguishes sub-event STRUCTURE from per-day time
+            // DETAIL. Desktop shows the former and hides the latter — see the
+            // body.desktop rules. Older payloads have no bulletKind; those are
+            // per-day times, which is the pre-existing desktop-hidden behaviour.
+            list.className = "time-list" +
+              (item.bulletKind === "children" ? " is-children" : "");
 
             item.timeBullets.forEach(function(t) {
               var chip = document.createElement("div");
