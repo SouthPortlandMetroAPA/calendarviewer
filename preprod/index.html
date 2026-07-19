@@ -499,13 +499,19 @@
       // ================================================================
       // STANDALONE FRONTEND — CalendarViewer
       // ================================================================
-      // This file replaces the GAS-served Index.html for standalone use
-      // (GitHub Pages, Facebook in-app browser, etc.). Instead of
-      // google.script.run, it calls the GAS backend via fetch() through
-      // a Cloudflare Worker CORS proxy.
+      // Served statically from GitHub Pages. There is NO Google Apps
+      // Script anywhere in this path any more: the GAS backend was
+      // retired in July 2026 and its render model was ported to the
+      // EventHorizon worker (worker/src/cards.js).
       //
-      // Go-forward stack:
-      //   Frontend (this file) → Cloudflare Worker → GAS doPost (Api.js)
+      // Stack:
+      //   Frontend (this file) → EventHorizon worker /cards → Google
+      //   Calendar API. The worker holds the service-account key, so
+      //   this page ships no credentials and needs no CORS proxy.
+      //
+      // If you are here to change how a card is GROUPED or LABELLED,
+      // the logic is in the worker, not here — this file renders what
+      // /cards returns.
       // ================================================================
 
       // ── API Configuration ─────────────────────────────────────────────
@@ -948,7 +954,7 @@
       }
 
       // ── Load ──────────────────────────────────────────────────────────
-      // Replaces google.script.run with callServer() fetch.
+      // Single entry point: callServer() fetches /cards.
       // Routes to admin, text-only, or card view based on URL params.
 
       function load() {
