@@ -6,16 +6,10 @@
     <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover" />
     <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css" />
     <style>
-      /* ── Layout ────────────────────────────────────────────────────────────
-         Map-dominant app shell, not a document. The previous version gave a
-         624 px gradient header and 100 px cards top billing over the thing
-         people actually came for. Zillow and Airbnb both put the map at parity
-         or better and shrink everything else to a scannable rail; that is the
-         model here. The page itself never scrolls — only the list does. */
-      :root {
+      :root{
         --spm-primary:#ea002a; --spm-accent:#0031a1;
         --bg:#f5f5f5; --card:#fff; --border:#e1e1e1; --text:#1f1f1f; --muted:#6b7280;
-        --rail:340px; --hdr:52px; --chips:46px;
+        --rail:340px; --hdr:52px; --chips:46px; --row:9px 13px; --nsize:.9rem; --msize:.775rem;
       }
       *{box-sizing:border-box;margin:0;padding:0}
       html,body{height:100%;overflow:hidden;background:var(--bg);color:var(--text);
@@ -24,13 +18,11 @@
 
       .bar{height:var(--hdr);flex:none;display:flex;align-items:center;gap:10px;padding:0 14px;color:#fff;
         background:linear-gradient(135deg,var(--spm-primary),var(--spm-accent));box-shadow:0 2px 8px rgba(0,0,0,.2);z-index:900}
-      .bar h1{font-size:1rem;font-weight:900;letter-spacing:.01em;white-space:nowrap}
+      .bar h1{font-size:1rem;font-weight:900;white-space:nowrap}
       .bar .sub{font-size:.82rem;opacity:.9;white-space:nowrap}
       .bar .spacer{flex:1}
       .bar .tally{font-size:.8rem;opacity:.92;font-variant-numeric:tabular-nums;white-space:nowrap}
 
-      /* Filter chips. Horizontal, always visible, counts inline so the cost of
-         a filter is legible before it is applied. */
       .chips{height:var(--chips);flex:none;display:flex;align-items:center;gap:7px;padding:0 12px;
         background:var(--card);border-bottom:1px solid var(--border);overflow-x:auto;scrollbar-width:none;z-index:800}
       .chips::-webkit-scrollbar{display:none}
@@ -43,68 +35,73 @@
       .chip[aria-pressed="true"] .n{opacity:.85}
 
       .body{flex:1;display:flex;min-height:0;position:relative}
-      #map{flex:1;min-width:0;height:100%;background:#e9e9e9}
-
+      #map{flex:1;min-width:0;height:100%;background:#eaeaea}
       .rail{width:var(--rail);flex:none;height:100%;overflow-y:auto;overscroll-behavior:contain;
         background:var(--bg);border-right:1px solid var(--border)}
 
-      /* Compact rows: name, then address and town on one muted line. Roughly
-         half the previous height, so ~11 venues are visible instead of 5.
-         Directions moved into the popup — a link on every row is 67 links
-         competing with the one thing the row is for. */
-      .v{padding:9px 13px;border-bottom:1px solid #ececec;cursor:pointer;background:var(--card);
+      .v{padding:var(--row);border-bottom:1px solid #ececec;cursor:pointer;background:var(--card);
         border-left:3px solid transparent;transition:background .1s,border-left-color .1s}
       .v:hover{background:#f7f9fc}
       .v:focus-visible{outline:2px solid var(--spm-accent);outline-offset:-2px}
       .v[aria-current="true"]{background:#fff5f6;border-left-color:var(--spm-primary)}
-      .v-n{font-weight:700;font-size:.9rem;line-height:1.25}
-      .v-m{color:var(--muted);font-size:.775rem;margin-top:2px;line-height:1.3}
+      .v-n{font-weight:700;font-size:var(--nsize);line-height:1.25}
+      .v-m{color:var(--muted);font-size:var(--msize);margin-top:2px;line-height:1.3}
       .v-m b{color:var(--spm-primary);font-weight:700;letter-spacing:.05em;text-transform:uppercase;font-size:.72rem}
       .empty{padding:26px 16px;text-align:center;color:var(--muted);font-size:.85rem}
 
-      /* Markers. A small dot by default so 67 pins do not read as noise; the
-         selected one becomes a larger branded pin and STAYS distinct at any
-         zoom, which is the behaviour Airbnb settled on for keeping your place
-         after you pan away. */
       .pin{width:13px;height:13px;border-radius:50%;background:var(--spm-accent);
-        border:2.5px solid #fff;box-shadow:0 1px 4px rgba(0,0,0,.4);transition:transform .12s}
+        border:2.5px solid #fff;box-shadow:0 1px 4px rgba(0,0,0,.45);transition:transform .12s}
       .pin-wrap:hover .pin{transform:scale(1.35)}
-      .pin.sel{width:23px;height:23px;background:var(--spm-primary);border-width:3px;
-        box-shadow:0 2px 9px rgba(234,0,42,.65);transform:scale(1)}
+      .pin.sel{width:24px;height:24px;background:var(--spm-primary);border-width:3px;
+        box-shadow:0 2px 10px rgba(234,0,42,.7)}
 
-      .legend{position:absolute;z-index:600;right:10px;bottom:10px;background:rgba(255,255,255,.94);
+      .legend{position:absolute;z-index:600;right:10px;bottom:10px;background:rgba(255,255,255,.95);
         border:1px solid var(--border);border-radius:9px;padding:7px 9px;box-shadow:0 2px 8px rgba(0,0,0,.16);
-        font-size:.73rem;line-height:1.45}
+        font-size:.73rem;line-height:1.5}
       .legend-row{display:flex;align-items:center;gap:6px;white-space:nowrap}
-      .legend-sw{width:11px;height:11px;border-radius:3px;flex:none}
+      .legend-sw{width:12px;height:12px;border-radius:3px;flex:none}
       .leaflet-popup-content{font-size:.88rem;line-height:1.4;margin:9px 12px}
       .leaflet-popup-content b{display:block;font-size:.95rem;margin-bottom:1px}
       .leaflet-popup-content .pc{color:var(--muted)}
       .leaflet-popup-content a{display:inline-block;margin-top:6px;margin-right:9px;color:var(--spm-accent);
         text-decoration:none;font-weight:600;font-size:.83rem}
+      .grab{display:none}
 
-      /* ── Mobile: bottom sheet ──────────────────────────────────────────────
-         Below 900 px the rail becomes a non-modal bottom sheet over a
-         full-bleed map — the Google Maps "place" pattern, where the sheet
-         describes and the map still works underneath. Two snap points, peek
-         and open, because a free-dragging sheet needs a gesture vocabulary
-         this page does not otherwise have. */
-      @media (max-width:899px){
-        .body{display:block}
-        #map{position:absolute;inset:0;height:100%}
-        .rail{position:absolute;left:0;right:0;bottom:0;width:auto;height:62%;
-          border-right:none;border-top:1px solid var(--border);border-radius:15px 15px 0 0;
-          box-shadow:0 -3px 16px rgba(0,0,0,.2);z-index:700;
-          transition:transform .24s cubic-bezier(.4,0,.2,1);background:var(--card)}
-        .rail.peek{transform:translateY(calc(100% - 58px))}
-        .grab{position:sticky;top:0;background:var(--card);padding:7px 0 5px;cursor:grab;
-          border-bottom:1px solid #ececec;z-index:2}
-        .grab::before{content:"";display:block;width:38px;height:4px;border-radius:2px;
-          background:#cbd0d8;margin:0 auto 5px}
-        .grab-l{text-align:center;font-size:.76rem;color:var(--muted);font-weight:600}
-        .legend{bottom:auto;top:10px;right:10px}
-      }
-      @media (min-width:900px){ .grab{display:none} }
+      /* ── DEVICE TIERS ──────────────────────────────────────────────────────
+         Mirrors the house detection used by CalendarViewer: screen.width with a
+         pointer check, applying body.mobile / body.tablet / body.desktop. Media
+         queries alone cannot tell a 1024 px tablet from a 1024 px laptop, and
+         the two want different touch targets. Same scheme, same class names -
+         one convention across both public pages, not two.
+
+         mobile  — full-bleed map, list as a bottom sheet, 44 px touch rows
+         tablet  — rail, but wider rows and bigger chips for fingers
+         desktop — rail, compact rows, hover affordances                        */
+
+      body.mobile{--hdr:48px;--chips:52px;--row:12px 14px;--nsize:.95rem;--msize:.82rem}
+      body.mobile .body{display:block}
+      body.mobile #map{position:absolute;inset:0;height:100%}
+      body.mobile .rail{position:absolute;left:0;right:0;bottom:0;width:auto;height:64%;
+        border-right:none;border-top:1px solid var(--border);border-radius:16px 16px 0 0;
+        box-shadow:0 -3px 18px rgba(0,0,0,.22);z-index:700;background:var(--card);
+        transition:transform .24s cubic-bezier(.4,0,.2,1)}
+      body.mobile .rail.peek{transform:translateY(calc(100% - 60px))}
+      body.mobile .grab{display:block;position:sticky;top:0;background:var(--card);padding:8px 0 6px;
+        border-bottom:1px solid #ececec;z-index:2;cursor:pointer}
+      body.mobile .grab::before{content:"";display:block;width:40px;height:4px;border-radius:2px;
+        background:#cbd0d8;margin:0 auto 6px}
+      body.mobile .grab-l{text-align:center;font-size:.8rem;color:var(--muted);font-weight:600}
+      body.mobile .chip{padding:9px 15px;font-size:.86rem}
+      body.mobile .legend{bottom:auto;top:10px;right:10px;font-size:.7rem}
+      body.mobile .v:hover{background:var(--card)}   /* no hover state on touch */
+
+      body.tablet{--rail:300px;--hdr:54px;--chips:54px;--row:12px 14px;--nsize:.94rem;--msize:.8rem}
+      body.tablet .chip{padding:9px 15px;font-size:.85rem}
+      body.tablet .v:hover{background:var(--card)}
+      body.tablet .pin{width:15px;height:15px}       /* fatter finger target */
+      body.tablet .pin.sel{width:26px;height:26px}
+
+      body.desktop{--rail:340px}
     </style>
   </head>
   <body>
@@ -117,7 +114,7 @@
       </div>
       <div class="chips" id="chips"></div>
       <div class="body">
-        <div class="rail peek" id="rail">
+        <div class="rail" id="rail">
           <div class="grab" id="grab"><div class="grab-l" id="grabL">Show list</div></div>
           <div id="list"></div>
         </div>
@@ -128,6 +125,18 @@
 
     <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
     <script>
+      /* Device tier FIRST: the CSS custom properties above depend on the body
+         class, and Leaflet reads element sizes at init. */
+      (function () {
+        var sw = screen.width, hasTouch = navigator.maxTouchPoints > 0, cls;
+        if (sw < 768) cls = 'mobile';
+        else if (sw < 1200) cls = 'tablet';
+        else cls = (hasTouch && !window.matchMedia('(pointer: fine)').matches) ? 'tablet' : 'desktop';
+        document.body.classList.add(cls);
+      })();
+      var TIER = document.body.classList.contains('mobile') ? 'mobile'
+               : document.body.classList.contains('tablet') ? 'tablet' : 'desktop';
+
       var AREAS = [
   {k:"milwaukie",label:"Milwaukie"},
   {k:"oregoncity",label:"Oregon City"},
@@ -135,10 +144,6 @@
   {k:"tigard",label:"Tigard"},
   {k:"hillsboro",label:"Hillsboro & West"}
       ];
-      /* Coordinates: US Census geocoder (TIGER address ranges) primary,
-         Nominatim fallback. Census resolves exact house numbers; Nominatim was
-         found placing six of these on the right street at the wrong point,
-         worst case 13.6 km out. All 67 cross-checked, agreement within 250 m. */
       var VENUES = [
   {n:"89 Sports Bar and Billiards",a:"18641 SW Tualatin Valley Hwy",c:"Aloha",r:"beaverton",lat:45.494745,lon:-122.868815},
   {n:"Dr Feelgoods Pub",a:"20419 SW Tualatin Valley Hwy",c:"Aloha",r:"beaverton",lat:45.497001,lon:-122.887021},
@@ -172,8 +177,8 @@
   {n:"Hanko's Sports Bar & Grill",a:"4 MONROE PKWY",c:"Lake Oswego",r:"tigard",lat:45.431834,lon:-122.703402},
   {n:"Jo's Saloon & Eatery",a:"4400 SE INTERNATIONAL Way",c:"Milwaukie",r:"milwaukie",lat:45.435865,lon:-122.617725},
   {n:"River Roadhouse",a:"11921 SE 22ND",c:"Milwaukie",r:"milwaukie",lat:45.438172,lon:-122.641178},
-  {n:"The Gold Club (formerly The Dolphin)",a:"17180 SE McLoughlin Blvd",c:"Milwaukie",r:"milwaukie",lat:45.39974,lon:-122.61824},
   {n:"The Grove Restaurant & Bar",a:"15300 SE MCLOUGHLIN BLVD",c:"Milwaukie",r:"milwaukie",lat:45.41207,lon:-122.62877},
+  {n:"The Old Dolphin",a:"17180 SE McLoughlin Blvd",c:"Milwaukie",r:"milwaukie",lat:45.39974,lon:-122.61824},
   {n:"Wichita Pub",a:"11481 SE HWY 212",c:"Milwaukie",r:"milwaukie",lat:45.408314,lon:-122.544875},
   {n:"Sundowner",a:"115 W MAIN ST",c:"Molalla",r:"oregoncity",lat:45.147661,lon:-122.577376},
   {n:"Wildhorse Bar & Grill",a:"110 S MOLALLA AVE",c:"Molalla",r:"oregoncity",lat:45.14712,lon:-122.577438},
@@ -185,7 +190,6 @@
   {n:"The Coney Island Tavern",a:"1413 WASHINGTON ST",c:"Oregon City",r:"oregoncity",lat:45.362013,lon:-122.599676},
   {n:"The Verdict Bar & Grill and Caulfield House",a:"110 8TH ST",c:"Oregon City",r:"oregoncity",lat:45.358504,lon:-122.607822},
   {n:"Wichita Bar & Grill",a:"19140 S Molalla Ave",c:"Oregon City",r:"oregoncity",lat:45.329521,lon:-122.584782},
-  {n:"Canton Phoenix",a:"14455 SW PACIFIC HWY",c:"Portland",r:"tigard",lat:45.443034,lon:-122.742972},
   {n:"Dublin Pub",a:"6821 SW Beaverton Hillsdale Hwy",c:"Portland",r:"beaverton",lat:45.486728,lon:-122.747425},
   {n:"Garden Home Dugout",a:"7380 SW GARDEN HOME RD",c:"Portland",r:"tigard",lat:45.465568,lon:-122.75184},
   {n:"Greek Village Tavern",a:"301 NW MURRAY BLVD",c:"Portland",r:"beaverton",lat:45.520966,lon:-122.816588},
@@ -200,6 +204,7 @@
   {n:"No Place Saloon",a:"38725 PROCTOR BLVD",c:"Sandy",r:"oregoncity",lat:45.397505,lon:-122.264979},
   {n:"Last Call",a:"16450 SW LANGER DR",c:"Sherwood",r:"tigard",lat:45.365982,lon:-122.845367},
   {n:"Bull Mountain Bar & Grill",a:"13727 SW PACIFIC HWY",c:"Tigard",r:"tigard",lat:45.420603,lon:-122.786485},
+  {n:"Canton Phoenix",a:"14455 SW PACIFIC HWY",c:"Tigard",r:"tigard",lat:45.4158,lon:-122.79147},
   {n:"Home Turf Sportsbar & Grill",a:"13500 SW PACIFIC HWY",c:"Tigard",r:"tigard",lat:45.421441,lon:-122.782121},
   {n:"Hotpot Palace",a:"11530 SW PACIFIC HWY",c:"Tigard",r:"tigard",lat:45.44061,lon:-122.74867},
   {n:"Mcmenamin's Greenway Pub",a:"12272 SW SCHOLLS FERRY RD",c:"Tigard",r:"tigard",lat:45.443121,lon:-122.803287},
@@ -213,9 +218,15 @@
   {name:"Washington County",color:"#b45309",geo:{"type":"Polygon","coordinates":[[[-123.4860593,45.4332318],[-123.1351973,45.4335224],[-123.1351102,45.4189363],[-123.1146749,45.4189553],[-123.1147346,45.4042575],[-123.0321617,45.4048017],[-123.0321604,45.3904755],[-123.0115395,45.3908801],[-123.0115782,45.3764933],[-122.9913915,45.3754269],[-122.991396,45.3611063],[-122.9703145,45.3607624],[-122.9702143,45.3464587],[-122.9087969,45.3461852],[-122.9089173,45.317463],[-122.8464886,45.3171967],[-122.8464327,45.3461127],[-122.8055494,45.346283],[-122.8054669,45.3317666],[-122.7437159,45.3320679],[-122.7438607,45.5195099],[-122.7644857,45.5195099],[-122.7644116,45.5338588],[-122.7848624,45.5339965],[-122.7847634,45.548401],[-122.7950889,45.5484268],[-122.7959071,45.5557174],[-122.8054193,45.5555867],[-122.8054809,45.5629107],[-122.8261894,45.5630401],[-122.8263411,45.5775212],[-122.8469821,45.577515],[-122.8468482,45.591836],[-122.8675867,45.5918784],[-122.8674956,45.6062247],[-122.8879623,45.6063512],[-122.8878342,45.6204618],[-122.9089785,45.6207625],[-122.9090836,45.6352238],[-122.9290827,45.635312],[-122.9288985,45.7356863],[-122.9903761,45.7364472],[-122.9903365,45.7508239],[-123.0317766,45.7513622],[-123.0308922,45.7791747],[-123.3610461,45.7796454],[-123.3610795,45.708694],[-123.4846699,45.7091376],[-123.485109,45.6792679],[-123.4643818,45.6792836],[-123.4640969,45.6651332],[-123.4437614,45.6651248],[-123.4438466,45.650674],[-123.4230055,45.6506439],[-123.4232577,45.6361788],[-123.3802173,45.6357543],[-123.3806269,45.621983],[-123.3405115,45.622208],[-123.3403216,45.6074571],[-123.2994335,45.6072517],[-123.2992703,45.5930203],[-123.3201968,45.592976],[-123.3199977,45.5786915],[-123.3611036,45.5787813],[-123.3611399,45.549886],[-123.4019948,45.5500697],[-123.4021509,45.5355772],[-123.4219173,45.535325],[-123.4219573,45.5213846],[-123.4427073,45.5210563],[-123.4410961,45.4912706],[-123.4611888,45.4915561],[-123.4638711,45.4472955],[-123.4854746,45.4471396],[-123.4860593,45.4332318]]]}}
       ];
 
-      var map = L.map('map', { scrollWheelZoom: true, zoomControl: true });
-      L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', {
-        maxZoom: 19, attribution: '&copy; <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a>'
+      var map = L.map('map', { scrollWheelZoom: TIER === 'desktop', zoomControl: true });
+      /* Carto Positron rather than standard OSM. The county fills need to read
+         as data, and standard OSM tiles are already saturated with green parks,
+         yellow arterials and pink motorways - a 10% overlay on top of that is
+         invisible, which is exactly the complaint. A muted basemap lets the
+         shading carry meaning instead of competing. */
+      L.tileLayer('https://{s}.basemaps.cartocdn.com/light_all/{z}/{x}/{y}{r}.png', {
+        maxZoom: 19, subdomains: 'abcd',
+        attribution: '&copy; <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a> &copy; <a href="https://carto.com/attributions">CARTO</a>'
       }).addTo(map);
 
       function inRing(lon,lat,r){var i,j,ins=false;for(i=0,j=r.length-1;i<r.length;j=i++){
@@ -225,14 +236,16 @@
         for(p=0;p<polys.length;p++){if(!inRing(lon,lat,polys[p][0]))continue;var hole=false;
         for(k=1;k<polys[p].length;k++)if(inRing(lon,lat,polys[p][k]))hole=true;if(!hole)return true;}return false;}
 
+      /* Heavier than before: 22% fill and a 3 px stroke. On a muted basemap the
+         counties now read at a glance without burying the pins, which stay the
+         most saturated thing on the map. */
       COUNTIES.forEach(function (c) {
         L.geoJSON(c.geo, { interactive:false,
-          style:{color:c.color,weight:1.5,opacity:.6,fillColor:c.color,fillOpacity:.09} }).addTo(map);
-        c.count = VENUES.filter(function(v){return inCounty(v.lon,v.lat,c.geo);}).length;
+          style:{color:c.color,weight:3,opacity:.9,fillColor:c.color,fillOpacity:.22} }).addTo(map);
       });
       document.getElementById('legend').innerHTML = COUNTIES.map(function(c){
         return '<div class="legend-row"><span class="legend-sw" style="background:'+c.color+
-          '33;border:1.5px solid '+c.color+'"></span><span>'+c.name+'</span></div>';}).join('');
+          '55;border:2px solid '+c.color+'"></span><span>'+c.name+'</span></div>';}).join('');
 
       var esc = function (s) { return String(s == null ? '' : s)
         .replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;'); };
@@ -241,129 +254,94 @@
       var gmap = function (v) { return 'https://www.google.com/maps/search/?api=1&query=' +
         encodeURIComponent(v.n + ', ' + v.a + ', ' + v.c + ', OR'); };
 
-      var filter = 'all', selected = null;
-      var markers = [], cards = [];
+      var filter = 'all', selected = null, markers = [], cards = [];
 
       VENUES.forEach(function (v, i) {
         var m = L.marker([v.lat, v.lon], {
           icon: L.divIcon({ className:'pin-wrap', html:'<div class="pin"></div>',
-                            iconSize:[13,13], iconAnchor:[6.5,6.5] }),
-          title: v.n
-        });
+                            iconSize:[13,13], iconAnchor:[6.5,6.5] }), title: v.n });
         m.bindPopup('<b>' + esc(v.n) + '</b><span class="pc">' + esc(v.a) + '<br>' + esc(v.c) +
           '</span><a href="' + dirs(v) + '" target="_blank" rel="noopener">Directions</a>' +
           '<a href="' + gmap(v) + '" target="_blank" rel="noopener">Google Maps</a>',
-          { autoPan: false, closeButton: true });
+          { autoPan:false });
         m.on('click', function () { select(i, false); });
         markers.push(m);
       });
 
-      /* Centre WITH an offset. The rail covers the left 340 px of the viewport,
-         so setView() on the raw coordinate leaves the pin visually left of
-         centre or hidden behind the list. Leaflet has no built-in for this
-         (open since issue #859), so project to pixels, shift, and unproject.
-         On mobile the sheet covers the BOTTOM, so the shift is vertical. */
+      /* Only mobile needs an offset: there the sheet overlays a full-bleed map.
+         On tablet and desktop the rail is a SIBLING of the map, so Leaflet's
+         viewport already excludes it and any offset would push the pin off
+         centre - which it did, by exactly half the rail width, until measured. */
       function centerOn(latlng, zoom) {
         var z = zoom == null ? Math.max(map.getZoom(), 15) : zoom;
-        var pt = map.project(latlng, z);
-        // Desktop: the rail is a SIBLING of the map, so Leaflet already excludes
-        // it and no offset is wanted. Measuring showed an offset here pushed the
-        // pin 175 px right of the visible centre - the fix caused the fault.
-        // Mobile: the sheet genuinely overlays a full-bleed map, so shift up by
-        // the visible half of it.
-        if (window.innerWidth < 900) {
-          var sheet = document.getElementById('rail').getBoundingClientRect();
-          var covered = Math.max(0, window.innerHeight - sheet.top);
-          pt = pt.add([0, covered / 2]);
-        }
-        map.setView(map.unproject(pt, z), z, { animate: true });
+        if (TIER !== 'mobile') { map.setView(latlng, z, { animate:true }); return; }
+        var sheet = document.getElementById('rail').getBoundingClientRect();
+        var covered = Math.max(0, window.innerHeight - sheet.top);
+        var pt = map.project(latlng, z).add([0, covered / 2]);
+        map.setView(map.unproject(pt, z), z, { animate:true });
       }
 
       function select(i, fromCard) {
         if (selected !== null && markers[selected]) {
           var pe = markers[selected].getElement();
           if (pe) pe.querySelector('.pin').classList.remove('sel');
-          if (cards[selected]) cards[selected].setAttribute('aria-current', 'false');
+          if (cards[selected]) cards[selected].setAttribute('aria-current','false');
         }
         selected = i;
-        var v = VENUES[i], m = markers[i];
-        var el = m.getElement();
+        var m = markers[i], el = m.getElement();
         if (el) el.querySelector('.pin').classList.add('sel');
         if (cards[i]) {
-          cards[i].setAttribute('aria-current', 'true');
+          cards[i].setAttribute('aria-current','true');
           if (!fromCard) cards[i].scrollIntoView({ block:'nearest', behavior:'smooth' });
         }
         m.openPopup();
         centerOn(m.getLatLng());
       }
 
-      function visible() {
-        return VENUES.map(function (v, i) { return { v: v, i: i }; })
-          .filter(function (x) { return filter === 'all' || x.v.r === filter; });
-      }
+      function visible(){ return VENUES.map(function(v,i){return {v:v,i:i};})
+        .filter(function(x){ return filter==='all' || x.v.r===filter; }); }
 
       function render() {
-        var rows = visible();
-        var list = document.getElementById('list');
-        list.innerHTML = '';
-        cards = [];
-        markers.forEach(function (m) { map.removeLayer(m); });
-
-        if (!rows.length) { list.innerHTML = '<div class="empty">No venues in this area.</div>'; return; }
+        var rows = visible(), list = document.getElementById('list');
+        list.innerHTML=''; cards=[];
+        markers.forEach(function(m){ map.removeLayer(m); });
+        if (!rows.length) { list.innerHTML='<div class="empty">No venues in this area.</div>'; return; }
         rows.forEach(function (x) {
           markers[x.i].addTo(map);
-          var d = document.createElement('div');
-          d.className = 'v';
-          d.tabIndex = 0;
-          d.setAttribute('role', 'button');
-          d.setAttribute('aria-current', selected === x.i ? 'true' : 'false');
-          d.innerHTML = '<div class="v-n">' + esc(x.v.n) + '</div>' +
-                        '<div class="v-m"><b>' + esc(x.v.c) + '</b> · ' + esc(x.v.a) + '</div>';
-          d.addEventListener('click', function () { select(x.i, true); });
-          d.addEventListener('keydown', function (e) {
-            if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); select(x.i, true); }
-          });
-          list.appendChild(d);
-          cards[x.i] = d;
+          var d=document.createElement('div');
+          d.className='v'; d.tabIndex=0; d.setAttribute('role','button');
+          d.setAttribute('aria-current', selected===x.i ? 'true':'false');
+          d.innerHTML='<div class="v-n">'+esc(x.v.n)+'</div>'+
+                      '<div class="v-m"><b>'+esc(x.v.c)+'</b> · '+esc(x.v.a)+'</div>';
+          d.addEventListener('click', function(){ select(x.i, true); });
+          d.addEventListener('keydown', function(e){
+            if(e.key==='Enter'||e.key===' '){ e.preventDefault(); select(x.i, true); } });
+          list.appendChild(d); cards[x.i]=d;
         });
-
-        document.getElementById('tally').textContent =
-          rows.length + (rows.length === 1 ? ' venue' : ' venues');
-        map.fitBounds(rows.map(function (x) { return [x.v.lat, x.v.lon]; }), {
-          paddingTopLeft: window.innerWidth >= 900 ? [40, 40] : [30, 30],
-          paddingBottomRight: window.innerWidth >= 900 ? [40, 40] : [30, 120],
-          maxZoom: 14
-        });
+        document.getElementById('tally').textContent = rows.length + (rows.length===1?' venue':' venues');
+        var pad = TIER==='mobile' ? [30,30] : [40,40];
+        map.fitBounds(rows.map(function(x){ return [x.v.lat,x.v.lon]; }),
+          { paddingTopLeft:pad, paddingBottomRight: TIER==='mobile' ? [30,140] : pad, maxZoom:14 });
       }
 
-      /* Chips carry their own counts so the cost of a filter is visible before
-         you spend a tap on it. */
-      var chipDefs = [{ k:'all', label:'All areas' }].concat(AREAS);
-      document.getElementById('chips').innerHTML = chipDefs.map(function (c) {
-        var n = c.k === 'all' ? VENUES.length : VENUES.filter(function(v){return v.r===c.k;}).length;
-        return '<button type="button" class="chip" data-k="' + c.k + '" aria-pressed="' +
-          (c.k === 'all') + '">' + esc(c.label) + '<span class="n">' + n + '</span></button>';
-      }).join('');
-      document.getElementById('chips').addEventListener('click', function (e) {
-        var b = e.target.closest('.chip'); if (!b) return;
-        filter = b.getAttribute('data-k');
-        [].forEach.call(this.querySelectorAll('.chip'), function (c) {
-          c.setAttribute('aria-pressed', String(c === b)); });
-        selected = null;
-        render();
+      var chipDefs=[{k:'all',label:'All areas'}].concat(AREAS);
+      document.getElementById('chips').innerHTML = chipDefs.map(function(c){
+        var n = c.k==='all' ? VENUES.length : VENUES.filter(function(v){return v.r===c.k;}).length;
+        return '<button type="button" class="chip" data-k="'+c.k+'" aria-pressed="'+(c.k==='all')+'">'+
+          esc(c.label)+'<span class="n">'+n+'</span></button>'; }).join('');
+      document.getElementById('chips').addEventListener('click', function(e){
+        var b=e.target.closest('.chip'); if(!b) return;
+        filter=b.getAttribute('data-k');
+        [].forEach.call(this.querySelectorAll('.chip'), function(c){
+          c.setAttribute('aria-pressed', String(c===b)); });
+        selected=null; render();
       });
 
-      /* Bottom sheet: tap the handle to toggle peek/open. Deliberately two
-         states rather than free drag — a drag affordance implies momentum and
-         velocity handling that a 67-item list does not need. */
-      var rail = document.getElementById('rail'), grab = document.getElementById('grab');
-      function sheet(open) {
-        rail.classList.toggle('peek', !open);
-        document.getElementById('grabL').textContent = open ? 'Hide list' : 'Show list';
-      }
-      grab.addEventListener('click', function () { sheet(rail.classList.contains('peek')); });
-      if (window.innerWidth >= 900) rail.classList.remove('peek');
-      map.on('click', function () { if (window.innerWidth < 900) sheet(false); });
+      var rail=document.getElementById('rail'), grab=document.getElementById('grab');
+      function sheet(open){ rail.classList.toggle('peek', !open);
+        document.getElementById('grabL').textContent = open ? 'Hide list' : 'Show list'; }
+      grab.addEventListener('click', function(){ sheet(rail.classList.contains('peek')); });
+      if (TIER === 'mobile') { sheet(false); map.on('click', function(){ sheet(false); }); }
 
       render();
     </script>
