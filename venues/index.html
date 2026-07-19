@@ -265,8 +265,16 @@
       function centerOn(latlng, zoom) {
         var z = zoom == null ? Math.max(map.getZoom(), 15) : zoom;
         var pt = map.project(latlng, z);
-        if (window.innerWidth >= 900) pt = pt.subtract([document.getElementById('rail').offsetWidth / 2, 0]);
-        else pt = pt.add([0, document.getElementById('rail').getBoundingClientRect().height * 0.30]);
+        // Desktop: the rail is a SIBLING of the map, so Leaflet already excludes
+        // it and no offset is wanted. Measuring showed an offset here pushed the
+        // pin 175 px right of the visible centre - the fix caused the fault.
+        // Mobile: the sheet genuinely overlays a full-bleed map, so shift up by
+        // the visible half of it.
+        if (window.innerWidth < 900) {
+          var sheet = document.getElementById('rail').getBoundingClientRect();
+          var covered = Math.max(0, window.innerHeight - sheet.top);
+          pt = pt.add([0, covered / 2]);
+        }
         map.setView(map.unproject(pt, z), z, { animate: true });
       }
 
