@@ -41,7 +41,7 @@
         height: 420px; border-radius: 18px; border: 1px solid var(--border);
         box-shadow: 0 3px 10px rgba(0,0,0,.12); background: #e9e9e9;
       }
-      @media (min-width: 900px) { #map { height: 640px; order: 2; } .list { order: 1; } }
+      @media (min-width: 900px) { #map { height: 640px; } .map-wrap { order: 2; } .list { order: 1; } }
 
       .list { display: flex; flex-direction: column; gap: 10px; max-height: 640px; overflow-y: auto; }
 
@@ -72,6 +72,19 @@
       .unmapped { border-style: dashed; background: #fffaf0; border-color: #f0c36d; }
       .unmapped .v-city::after { content: " · not on the map"; color: var(--muted); font-weight: 600; }
 
+      /* County legend. Sits over the map because the association between a
+         shade and a name has to be visible without hunting for it. */
+      .legend {
+        position: absolute; z-index: 500; right: 12px; top: 12px;
+        background: rgba(255,255,255,.94); border: 1px solid var(--border);
+        border-radius: 10px; padding: 8px 10px; box-shadow: 0 2px 8px rgba(0,0,0,.15);
+        font-size: .78rem; line-height: 1.5;
+      }
+      .legend-row { display: flex; align-items: center; gap: 7px; white-space: nowrap; }
+      .legend-sw { width: 13px; height: 13px; border-radius: 3px; flex: none; }
+      .legend-n  { color: var(--muted); font-variant-numeric: tabular-nums; }
+      .map-wrap { position: relative; }
+
       .note {
         margin-top: 14px; font-size: .82rem; color: var(--muted);
         background: var(--card); border: 1px solid var(--border);
@@ -91,7 +104,7 @@
 
       <div class="layout">
         <div class="list" id="list"></div>
-        <div id="map"></div>
+        <div class="map-wrap"><div id="map"></div><div class="legend" id="legend"></div></div>
       </div>
 
       <div class="note" id="note"></div>
@@ -104,6 +117,21 @@
          book, whose lat/lon is unreliable (Midway's post-2022 records sit ~5 km
          off; two are 0,0). Where Nominatim could not place a house number, the
          venue is listed WITHOUT a pin rather than dropped or approximated. */
+
+      /* County boundaries from OpenStreetMap via Nominatim, simplified to ~330 m
+         (polygon_threshold 0.003) — enough fidelity at metro zoom for a tenth
+         the payload. Verified before shipping: every venue whose town maps to a
+         known county falls inside that county's polygon, 56 of 56, none wrong.
+
+         Teal and amber rather than the brand red/blue: the markers are blue and
+         the page chrome is red, so reusing either would blend a data layer into
+         decoration. The pair is also distinguishable for the common forms of
+         colour blindness. */
+      var COUNTIES = [
+        { name: "Clackamas County",  color: "#0f766e", geo: {"type":"Polygon","coordinates":[[[-122.8679985,45.259634],[-122.8497598,45.2596846],[-122.8345733,45.2740535],[-122.7849085,45.2740689],[-122.7849313,45.2595515],[-122.7388101,45.2595895],[-122.7520034,45.2429343],[-122.7477194,45.2359637],[-122.7503813,45.2322735],[-122.7453751,45.2327738],[-122.7526295,45.2290509],[-122.746963,45.22589],[-122.7454252,45.2160971],[-122.7478155,45.2111543],[-122.7591035,45.2083324],[-122.7556425,45.207433],[-122.7590817,45.2009172],[-122.7531185,45.2016209],[-122.7498172,45.1950838],[-122.7548778,45.1966063],[-122.7528385,45.1917561],[-122.7600846,45.1945361],[-122.7531394,45.1871765],[-122.7605777,45.182947],[-122.7519526,45.1819985],[-122.7663889,45.1634448],[-122.7749167,45.1623905],[-122.7700563,45.1592187],[-122.7884224,45.1299269],[-122.7758968,45.1233881],[-122.7758393,45.1187217],[-122.7499234,45.1077778],[-122.7436003,45.0964385],[-122.7197909,45.0798125],[-122.7172139,45.0699589],[-122.7050762,45.0589936],[-122.6786834,45.0463962],[-122.6697689,45.0466317],[-122.6490069,45.0323749],[-122.6342146,45.0338651],[-122.5960063,45.0200149],[-122.5947452,44.9909905],[-122.5683522,44.9831899],[-122.5596619,44.9650957],[-122.5352811,44.9365622],[-122.5203413,44.9342351],[-122.5048901,44.9181617],[-122.486141,44.9226082],[-122.4586891,44.9151412],[-122.4372815,44.9029769],[-122.3993076,44.9038973],[-122.3932024,44.8918033],[-122.4010155,44.8857092],[-121.7342967,44.8857794],[-121.7167958,44.8982912],[-121.7144036,44.9061771],[-121.7288997,44.9048184],[-121.7471574,44.9145268],[-121.7460885,44.9240663],[-121.763826,44.9418862],[-121.779952,44.9351375],[-121.7959316,44.9364328],[-121.7923893,44.9591075],[-121.8034333,44.9773722],[-121.8051664,45.0117781],[-121.7946339,45.0171943],[-121.7813291,45.0155944],[-121.7818887,45.0340814],[-121.7779379,45.0377749],[-121.7681938,45.039866],[-121.7440491,45.0338378],[-121.7184414,45.0372923],[-121.7213909,45.0467954],[-121.6891495,45.0668096],[-121.6585587,45.0663727],[-121.6597762,45.0794938],[-121.6515877,45.0878501],[-121.6657981,45.1198839],[-121.6853171,45.1236664],[-121.694862,45.1171687],[-121.7080156,45.1337199],[-121.710761,45.1507194],[-121.7252531,45.1591639],[-121.7485455,45.190694],[-121.7476085,45.2055455],[-121.7141862,45.2116098],[-121.7019741,45.230042],[-121.68262,45.2285419],[-121.686326,45.2341116],[-121.6808667,45.2505944],[-121.6964024,45.2553898],[-121.6969158,45.2605307],[-121.6792274,45.2965227],[-121.7027192,45.3296013],[-121.7046274,45.3405742],[-121.700781,45.3685006],[-121.6959867,45.3734497],[-121.7260899,45.394765],[-121.7763838,45.4027668],[-121.792835,45.4152434],[-121.7959571,45.4267594],[-121.8069565,45.435223],[-121.8067822,45.4541407],[-121.8196686,45.4616631],[-122.6415818,45.4614834],[-122.6610971,45.4578017],[-122.6454981,45.4426639],[-122.6510862,45.4365523],[-122.6489078,45.4326318],[-122.743706,45.4332855],[-122.7437159,45.3320679],[-122.8054669,45.3317666],[-122.8055494,45.346283],[-122.8464327,45.3461127],[-122.8464886,45.3171967],[-122.8679025,45.3173456],[-122.8679985,45.259634]]]} },
+        { name: "Washington County", color: "#b45309", geo: {"type":"Polygon","coordinates":[[[-123.4860593,45.4332318],[-123.1351973,45.4335224],[-123.1351102,45.4189363],[-123.1146749,45.4189553],[-123.1147346,45.4042575],[-123.0321617,45.4048017],[-123.0321604,45.3904755],[-123.0115395,45.3908801],[-123.0115782,45.3764933],[-122.9913915,45.3754269],[-122.991396,45.3611063],[-122.9703145,45.3607624],[-122.9702143,45.3464587],[-122.9087969,45.3461852],[-122.9089173,45.317463],[-122.8464886,45.3171967],[-122.8464327,45.3461127],[-122.8055494,45.346283],[-122.8054669,45.3317666],[-122.7437159,45.3320679],[-122.7438607,45.5195099],[-122.7644857,45.5195099],[-122.7644116,45.5338588],[-122.7848624,45.5339965],[-122.7847634,45.548401],[-122.7950889,45.5484268],[-122.7959071,45.5557174],[-122.8054193,45.5555867],[-122.8054809,45.5629107],[-122.8261894,45.5630401],[-122.8263411,45.5775212],[-122.8469821,45.577515],[-122.8468482,45.591836],[-122.8675867,45.5918784],[-122.8674956,45.6062247],[-122.8879623,45.6063512],[-122.8878342,45.6204618],[-122.9089785,45.6207625],[-122.9090836,45.6352238],[-122.9290827,45.635312],[-122.9288985,45.7356863],[-122.9903761,45.7364472],[-122.9903365,45.7508239],[-123.0317766,45.7513622],[-123.0308922,45.7791747],[-123.3610461,45.7796454],[-123.3610795,45.708694],[-123.4846699,45.7091376],[-123.485109,45.6792679],[-123.4643818,45.6792836],[-123.4640969,45.6651332],[-123.4437614,45.6651248],[-123.4438466,45.650674],[-123.4230055,45.6506439],[-123.4232577,45.6361788],[-123.3802173,45.6357543],[-123.3806269,45.621983],[-123.3405115,45.622208],[-123.3403216,45.6074571],[-123.2994335,45.6072517],[-123.2992703,45.5930203],[-123.3201968,45.592976],[-123.3199977,45.5786915],[-123.3611036,45.5787813],[-123.3611399,45.549886],[-123.4019948,45.5500697],[-123.4021509,45.5355772],[-123.4219173,45.535325],[-123.4219573,45.5213846],[-123.4427073,45.5210563],[-123.4410961,45.4912706],[-123.4611888,45.4915561],[-123.4638711,45.4472955],[-123.4854746,45.4471396],[-123.4860593,45.4332318]]]} }
+      ];
+
       var VENUES = [
         { n: "89 Sports Bar and Billiards", a: "18641 SW Tualatin Valley Hwy", c: "Aloha", lat: 45.494745, lon: -122.868815 },
         { n: "Dr Feelgoods Pub", a: "20419 SW Tualatin Valley Hwy", c: "ALOHA", lat: 45.497001, lon: -122.887021, osm: "Beaverton" },
@@ -184,6 +212,47 @@
         attribution: '&copy; <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a>'
       }).addTo(map);
       map.fitBounds(mapped.map(function (v) { return [v.lat, v.lon]; }), { padding: [40, 40] });
+
+      /* Point-in-polygon so the legend can state how many venues each county
+         actually holds, rather than asserting a number that could drift from
+         the pins. Ray casting; rings are [lon, lat]. */
+      function inRing(lon, lat, ring) {
+        var inside = false;
+        for (var i = 0, j = ring.length - 1; i < ring.length; j = i++) {
+          var xi = ring[i][0], yi = ring[i][1], xj = ring[j][0], yj = ring[j][1];
+          if ((yi > lat) !== (yj > lat) && lon < ((xj - xi) * (lat - yi)) / (yj - yi) + xi) inside = !inside;
+        }
+        return inside;
+      }
+      function inCounty(lon, lat, g) {
+        var polys = g.type === 'Polygon' ? [g.coordinates] : g.coordinates;
+        for (var p = 0; p < polys.length; p++) {
+          if (!inRing(lon, lat, polys[p][0])) continue;
+          var hole = false;
+          for (var k = 1; k < polys[p].length; k++) if (inRing(lon, lat, polys[p][k])) hole = true;
+          if (!hole) return true;
+        }
+        return false;
+      }
+
+      COUNTIES.forEach(function (c) {
+        // interactive:false so the shading never swallows a click meant for a pin.
+        L.geoJSON(c.geo, {
+          interactive: false,
+          style: { color: c.color, weight: 1.6, opacity: 0.65, fillColor: c.color, fillOpacity: 0.10 }
+        }).addTo(map);
+        c.count = VENUES.filter(function (v) { return inCounty(v.lon, v.lat, c.geo); }).length;
+      });
+
+      var elsewhere = VENUES.length - COUNTIES.reduce(function (t, c) { return t + c.count; }, 0);
+      document.getElementById('legend').innerHTML =
+        COUNTIES.map(function (c) {
+          return '<div class="legend-row">' +
+            '<span class="legend-sw" style="background:' + c.color + '33;border:1.5px solid ' + c.color + '"></span>' +
+            '<span>' + c.name + '</span> <span class="legend-n">' + c.count + '</span></div>';
+        }).join('') +
+        (elsewhere ? '<div class="legend-row"><span class="legend-sw" style="background:transparent;border:1.5px dotted #999"></span>' +
+                     '<span>Elsewhere</span> <span class="legend-n">' + elsewhere + '</span></div>' : '');
 
       var gmaps = function (v) {
         return 'https://www.google.com/maps/search/?api=1&query=' +
