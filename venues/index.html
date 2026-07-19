@@ -1,0 +1,213 @@
+<!DOCTYPE html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <title>SPM APA — Where We Play</title>
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css" />
+    <style>
+      /* Palette and card language lifted from CalendarViewer so the two public
+         pages read as one product. Do not diverge these without changing both. */
+      :root {
+        --spm-primary: #ea002a;
+        --spm-accent:  #0031a1;
+        --bg:     #f5f5f5;
+        --card:   #ffffff;
+        --border: #e1e1e1;
+        --text:   #1f1f1f;
+        --muted:  #666;
+      }
+      * { box-sizing: border-box; margin: 0; padding: 0; }
+      html, body {
+        background: var(--bg); color: var(--text);
+        font-family: system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif;
+        font-size: 16px;
+      }
+      .page { max-width: 1100px; margin: 0 auto; padding: 16px; }
+
+      header {
+        border-radius: 22px; padding: 22px 20px 20px; color: #fff;
+        background: linear-gradient(135deg, var(--spm-primary), var(--spm-accent));
+        box-shadow: 0 6px 18px rgba(0,0,0,.25); text-align: center; margin-bottom: 16px;
+      }
+      .title    { font-size: 1.5rem; font-weight: 900; line-height: 1.08; }
+      .subtitle { margin-top: 8px; font-size: 1.15rem; opacity: .95; }
+      .count    { margin-top: 10px; font-size: .9rem; opacity: .9; }
+
+      .layout { display: grid; grid-template-columns: 1fr; gap: 16px; }
+      @media (min-width: 900px) { .layout { grid-template-columns: 420px 1fr; } }
+
+      #map {
+        height: 420px; border-radius: 18px; border: 1px solid var(--border);
+        box-shadow: 0 3px 10px rgba(0,0,0,.12); background: #e9e9e9;
+      }
+      @media (min-width: 900px) { #map { height: 640px; order: 2; } .list { order: 1; } }
+
+      .list { display: flex; flex-direction: column; gap: 10px; max-height: 640px; overflow-y: auto; }
+
+      .venue {
+        background: var(--card); border: 1px solid var(--border); border-radius: 14px;
+        padding: 12px 14px; box-shadow: 0 2px 6px rgba(0,0,0,.08); cursor: pointer;
+        transition: transform .12s, box-shadow .12s, border-color .12s;
+      }
+      .venue:hover, .venue:focus-visible {
+        transform: translateY(-2px); box-shadow: 0 5px 14px rgba(0,0,0,.14);
+        border-color: var(--spm-accent); outline: none;
+      }
+      .venue.active { border-color: var(--spm-primary); box-shadow: 0 5px 16px rgba(234,0,42,.22); }
+      .v-name { font-weight: 800; font-size: 1.02rem; }
+      .v-addr { color: var(--muted); font-size: .9rem; margin-top: 3px; }
+      .v-city { color: var(--spm-primary); font-weight: 700; font-size: .74rem;
+                letter-spacing: .09em; text-transform: uppercase; margin-top: 6px; }
+      .v-links { margin-top: 8px; display: flex; gap: 8px; flex-wrap: wrap; }
+      .v-links a {
+        font-size: .8rem; text-decoration: none; color: var(--spm-accent);
+        border: 1px solid var(--border); border-radius: 999px; padding: 4px 12px; background: #fafafa;
+      }
+      .v-links a:hover { border-color: var(--spm-accent); }
+
+      /* Venues OpenStreetMap cannot place. Shown, never silently dropped, and
+         never given an invented pin — a wrong pin sends someone to the wrong
+         town, which is worse than an honest gap. */
+      .unmapped { border-style: dashed; background: #fffaf0; border-color: #f0c36d; }
+      .unmapped .v-city::after { content: " · not on the map"; color: var(--muted); font-weight: 600; }
+
+      .note {
+        margin-top: 14px; font-size: .82rem; color: var(--muted);
+        background: var(--card); border: 1px solid var(--border);
+        border-radius: 12px; padding: 10px 12px;
+      }
+      .leaflet-popup-content { font-size: .92rem; line-height: 1.35; }
+      .leaflet-popup-content b { display: block; margin-bottom: 2px; }
+    </style>
+  </head>
+  <body>
+    <div class="page">
+      <header>
+        <div class="title">South Portland Metro APA</div>
+        <div class="subtitle">Where We Play</div>
+        <div class="count" id="count"></div>
+      </header>
+
+      <div class="layout">
+        <div class="list" id="list"></div>
+        <div id="map"></div>
+      </div>
+
+      <div class="note" id="note"></div>
+    </div>
+
+    <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
+    <script>
+      /* Coordinates come from OpenStreetMap Nominatim, geocoded from the street
+         address and checked against the expected city — NOT from APA's address
+         book, whose lat/lon is unreliable (Midway's post-2022 records sit ~5 km
+         off; two are 0,0). Where Nominatim could not place a house number, the
+         venue is listed WITHOUT a pin rather than dropped or approximated. */
+      var VENUES = [
+        { n: "Mike's Place",                 a: "404 NW 1st Ave",            c: "Canby",        lat: 45.26160, lon: -122.69688 },
+        { n: "Watkins Park Pub",             a: "16740 SE 82nd Dr",          c: "Clackamas",    lat: 45.40426, lon: -122.57019 },
+        { n: "Wichita Pub",                  a: "11481 SE Hwy 212",          c: "Clackamas",    lat: 45.40831, lon: -122.54488 },
+        { n: "Vogie's Bar",                  a: "464 Portland Ave",          c: "Gladstone",    lat: 45.38998, lon: -122.60109 },
+        { n: "Jay's Bar & Grill",            a: "11595 SE 82nd Ave",         c: "Happy Valley", lat: 45.43915, lon: -122.57948 },
+        { n: "The Heritage Pub",             a: "10601 SE 82nd Ave",         c: "Happy Valley", lat: 45.44603, lon: -122.57919 },
+        { n: "River Roadhouse",              a: "11921 SE 22nd Ave",         c: "Milwaukie",    lat: 45.43817, lon: -122.64118 },
+        { n: "Jo's Saloon & Eatery",         a: "4400 SE International Way", c: "Milwaukie",    lat: 45.43586, lon: -122.61772 },
+        { n: "The Grove Restaurant & Bar",   a: "15300 SE McLoughlin Blvd",  c: "Milwaukie",    lat: 45.44907, lon: -122.64223 },
+        { n: "Milwaukie Elk's Lodge #142",   a: "13121 SE McLoughlin Blvd",  c: "Oak Grove",    lat: 45.42832, lon: -122.63448 },
+        { n: "Sundowner",                    a: "115 W Main St",             c: "Molalla",      lat: 45.14766, lon: -122.57738 },
+        { n: "Wildhorse Bar & Grill",        a: "110 S Molalla Ave",         c: "Molalla",      lat: 45.14711, lon: -122.57744 },
+        { n: "Midway Historic Public House", a: "1003 7th St",               c: "Oregon City",  lat: 45.35463, lon: -122.60129 },
+        { n: "The Verdict Bar & Grill",      a: "110 8th St",                c: "Oregon City",  lat: 45.35850, lon: -122.60782 },
+        { n: "McAnulty & Barry's",           a: "820 Main St, Suite C & E",  c: "Oregon City",  lat: 45.35861, lon: -122.60664 },
+        { n: "The Coney Island Tavern",      a: "1413 Washington St",        c: "Oregon City",  lat: 45.36201, lon: -122.59968 },
+        /* OpenStreetMap has no house numbers on this stretch of S Molalla Ave —
+           every query resolves to the street in Molalla, 25 km south. Listed
+           with directions links so they are still usable. */
+        { n: "Rodder's Grub & Pub",          a: "19195 S Molalla Ave",       c: "Oregon City",  lat: null, lon: null },
+        { n: "Wichita Bar & Grill",          a: "19140 S Molalla Ave",       c: "Oregon City",  lat: null, lon: null }
+      ];
+
+      var mapped = VENUES.filter(function (v) { return v.lat !== null; });
+      document.getElementById('count').textContent =
+        VENUES.length + ' venues · ' + mapped.length + ' on the map';
+
+      var map = L.map('map', { scrollWheelZoom: false });
+      L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', {
+        maxZoom: 19,
+        attribution: '&copy; <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a>'
+      }).addTo(map);
+      map.fitBounds(mapped.map(function (v) { return [v.lat, v.lon]; }), { padding: [40, 40] });
+
+      var gmaps = function (v) {
+        return 'https://www.google.com/maps/search/?api=1&query=' +
+               encodeURIComponent(v.n + ', ' + v.a + ', ' + v.c + ', OR');
+      };
+      var dirs = function (v) {
+        return 'https://www.google.com/maps/dir/?api=1&destination=' +
+               encodeURIComponent(v.a + ', ' + v.c + ', OR');
+      };
+
+      var markers = {}, cards = {};
+      var listEl = document.getElementById('list');
+
+      VENUES.forEach(function (v, i) {
+        var card = document.createElement('div');
+        card.className = 'venue' + (v.lat === null ? ' unmapped' : '');
+        card.tabIndex = 0;
+        card.innerHTML =
+          '<div class="v-name"></div>' +
+          '<div class="v-addr"></div>' +
+          '<div class="v-city"></div>' +
+          '<div class="v-links">' +
+            '<a target="_blank" rel="noopener" class="l-dir">Directions</a>' +
+            '<a target="_blank" rel="noopener" class="l-map">Open in Google Maps</a>' +
+          '</div>';
+        card.querySelector('.v-name').textContent = v.n;
+        card.querySelector('.v-addr').textContent = v.a;
+        card.querySelector('.v-city').textContent = v.c;
+        card.querySelector('.l-dir').href = dirs(v);
+        card.querySelector('.l-map').href = gmaps(v);
+        listEl.appendChild(card);
+        cards[i] = card;
+
+        if (v.lat === null) return;
+        var m = L.marker([v.lat, v.lon]).addTo(map);
+        var pop = document.createElement('div');
+        pop.innerHTML = '<b></b><span></span><br><a target="_blank" rel="noopener">Directions</a>';
+        pop.querySelector('b').textContent = v.n;
+        pop.querySelector('span').textContent = v.a + ', ' + v.c;
+        pop.querySelector('a').href = dirs(v);
+        m.bindPopup(pop);
+        markers[i] = m;
+
+        var focus = function () {
+          Object.keys(cards).forEach(function (k) { cards[k].classList.remove('active'); });
+          card.classList.add('active');
+          map.setView([v.lat, v.lon], 16, { animate: true });
+          m.openPopup();
+        };
+        card.addEventListener('click', focus);
+        card.addEventListener('keydown', function (e) {
+          if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); focus(); }
+        });
+        m.on('click', function () {
+          Object.keys(cards).forEach(function (k) { cards[k].classList.remove('active'); });
+          card.classList.add('active');
+          card.scrollIntoView({ block: 'nearest', behavior: 'smooth' });
+        });
+      });
+
+      var missing = VENUES.filter(function (v) { return v.lat === null; });
+      document.getElementById('note').innerHTML =
+        'Pins are geocoded from the street address. ' +
+        (missing.length
+          ? missing.length + ' venue' + (missing.length === 1 ? '' : 's') +
+            ' could not be placed automatically because OpenStreetMap has no house numbers on that ' +
+            'stretch of road &mdash; they are listed with a dashed border and still link to Google Maps, ' +
+            'which does have them. '
+          : '') +
+        'Tap a venue to zoom to it.';
+    </script>
+  </body>
+</html>
