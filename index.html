@@ -403,7 +403,32 @@
       body.desktop .loc-name { font-size: 15px; }
       body.desktop .loc-address { display: none; }
 
+      /* Desktop hides per-day time bullets by design — that detail lives in the
+         click-through modal, which is what keeps the desktop list scannable.
+         Sub-event bullets are NOT that. When EventHorizon expands one
+         poolplayers entry into several calendar events, the viewer folds them
+         back into a single card; if the children were hidden here too, that
+         card would say "World Pool Championships, Aug 4 – Aug 15" and silently
+         drop the three championships it is made of. Consolidating must not cost
+         information, so structure stays visible and only detail collapses. */
       body.desktop .time-list { display: none; }
+      body.desktop .time-list.is-children {
+        display: flex;
+        grid-column: 2;
+        grid-row: 3;
+        flex-direction: column;
+        align-items: flex-start;
+        gap: 4px;
+        margin-top: 8px;
+      }
+      body.desktop .time-list.is-children .time-chip {
+        font-size: 13px;
+        font-weight: 400;
+        padding: 5px 12px;
+        box-shadow: none;
+        background: rgba(0, 0, 0, 0.03);
+        text-align: left;
+      }
 
       body.desktop .modal-panel {
         max-width: 560px;
@@ -474,19 +499,30 @@
       // ================================================================
       // STANDALONE FRONTEND — CalendarViewer
       // ================================================================
-      // This file replaces the GAS-served Index.html for standalone use
-      // (GitHub Pages, Facebook in-app browser, etc.). Instead of
-      // google.script.run, it calls the GAS backend via fetch() through
-      // a Cloudflare Worker CORS proxy.
+      // Served statically from GitHub Pages. There is NO Google Apps
+      // Script anywhere in this path any more: the GAS backend was
+      // retired in July 2026 and its render model was ported to the
+      // EventHorizon worker (worker/src/cards.js).
       //
-      // Go-forward stack:
-      //   Frontend (this file) → Cloudflare Worker → GAS doPost (Api.js)
+      // Stack:
+      //   Frontend (this file) → EventHorizon worker /cards → Google
+      //   Calendar API. The worker holds the service-account key, so
+      //   this page ships no credentials and needs no CORS proxy.
+      //
+      // If you are here to change how a card is GROUPED or LABELLED,
+      // the logic is in the worker, not here — this file renders what
+      // /cards returns.
       // ================================================================
 
       // ── API Configuration ─────────────────────────────────────────────
-      // Cloudflare Worker CORS proxy URL.
-      // TODO: Update after wrangler deploy if URL differs.
-      var API_URL = 'https://calendarviewer.spmapa.workers.dev';
+      // The EventHorizon worker owns Google Calendar access (service-account
+      // auth lives there, in one place). /cards returns this page's render
+      // model built from the REAL calendar.
+      //
+      // NOT /snapshot — that endpoint is a dry-run parse of poolplayers and
+      // contains no Columbia River events at all. Pointing this page at it
+      // would silently drop every CR entry.
+      var CARDS_URL = 'https://eventhorizon.spmapa.workers.dev/cards';
 
       // ── Location filter from URL params ───────────────────────────────
       // Replaces the GAS template injection: const LOCATION_FILTER = "<?= LOCATION_FILTER ?>";
@@ -499,20 +535,27 @@
       // ── Base URL for building links ───────────────────────────────────
       var BASE_URL = window.location.origin + window.location.pathname;
 
-      // ── callServer — fetch() replacement for google.script.run ────────
-      // Posts a JSON action to the Cloudflare Worker, which forwards to
-      // GAS doPost (Api.js). Returns a Promise resolving to the JSON response.
+      // ── callServer — fetch the render list from the EventHorizon worker ─
+      // Returns the SAME items[] the GAS backend used to return, so every
+      // render function below is unchanged. Two things moved:
+      //
+      //   • Google Apps Script is gone from the request path entirely.
+      //   • Events that EventHorizon expanded 1→N out of one poolplayers
+      //     entry are re-consolidated into a single card, with the children
+      //     as time bullets. Grouping keys on the eh_parentId stamp, so
+      //     Columbia River entries — which carry no stamp and whose structure
+      //     we do not control — keep the original title + consecutive-day
+      //     grouping untouched.
       function callServer(action, locationFilter) {
-        return fetch(API_URL, {
-          method: 'POST',
-          headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({
-            action: action,
-            locationFilter: locationFilter || ''
-          })
-        }).then(function(response) {
+        var u = CARDS_URL + (locationFilter ? '?location=' + encodeURIComponent(locationFilter) : '');
+        return fetch(u, { cache: 'no-store' }).then(function(response) {
           if (!response.ok) throw new Error('Network error: ' + response.status);
           return response.json();
+        }).then(function(j) {
+          // Adapt to the envelope the callers already expect.
+          return j && j.ok
+            ? { success: true, data: j.items }
+            : { success: false, error: (j && j.error) || 'Unknown error' };
         });
       }
 
@@ -654,7 +697,12 @@
             item.timeBullets.length
           ) {
             var list = document.createElement("div");
-            list.className = "time-list";
+            // bulletKind distinguishes sub-event STRUCTURE from per-day time
+            // DETAIL. Desktop shows the former and hides the latter — see the
+            // body.desktop rules. Older payloads have no bulletKind; those are
+            // per-day times, which is the pre-existing desktop-hidden behaviour.
+            list.className = "time-list" +
+              (item.bulletKind === "children" ? " is-children" : "");
 
             item.timeBullets.forEach(function(t) {
               var chip = document.createElement("div");
@@ -906,7 +954,7 @@
       }
 
       // ── Load ──────────────────────────────────────────────────────────
-      // Replaces google.script.run with callServer() fetch.
+      // Single entry point: callServer() fetches /cards.
       // Routes to admin, text-only, or card view based on URL params.
 
       function load() {
