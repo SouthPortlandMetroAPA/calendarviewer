@@ -393,35 +393,60 @@
         font-size: 20px;
         margin: 0 0 2px;
       }
-      body.desktop .time { display: none; }
-      body.desktop .locations {
+      /* The header time is SHOWN on desktop.
+         It used to be `display:none` here, which meant a single-day timed event
+         ("5:30 PM – 6:30 PM") rendered as if it had no time at all — the value
+         sat in the DOM at zero height and only appeared once you clicked the
+         card. Hiding it on the LARGE viewport while showing it on the small one
+         also inverts responsive logic, and NN/g's progressive-disclosure rule is
+         to defer only what users RARELY need. The time on an event card is not
+         that. Kept small and grey so the title still leads.
+
+         Row 2 is safe: .time and .time-list.is-children are mutually exclusive
+         upstream — buildRenderList() sets headerTime only in the single-day
+         branch and bulletKind:'children' only in the umbrella branch — so these
+         two never occupy the grid at the same time. */
+      body.desktop .time {
+        display: block;
         grid-column: 2;
         grid-row: 2;
+        font-size: 14px;
+        font-weight: 600;
+        color: #444;
+        margin: 0 0 2px;
+      }
+      body.desktop .locations {
+        grid-column: 2;
+        grid-row: 3;
         margin-top: 0;
       }
       body.desktop .loc { margin-top: 2px; }
       body.desktop .loc-name { font-size: 15px; }
       body.desktop .loc-address { display: none; }
 
-      /* Desktop hides per-day time bullets by design — that detail lives in the
-         click-through modal, which is what keeps the desktop list scannable.
-         Sub-event bullets are NOT that. When EventHorizon expands one
-         poolplayers entry into several calendar events, the viewer folds them
-         back into a single card; if the children were hidden here too, that
-         card would say "World Pool Championships, Aug 4 – Aug 15" and silently
-         drop the three championships it is made of. Consolidating must not cost
-         information, so structure stays visible and only detail collapses. */
-      body.desktop .time-list { display: none; }
-      body.desktop .time-list.is-children {
+      /* Both bullet kinds are visible on desktop.
+         Sub-event bullets always were: when EventHorizon expands one poolplayers
+         entry into several calendar events the viewer folds them back into one
+         card, and hiding them would make that card say "World Pool
+         Championships, Aug 4 – Aug 15" while silently dropping the three
+         championships it is made of. Consolidating must not cost information.
+
+         Per-day time bullets used to be hidden here as mere "detail". That was
+         wrong for the same reason the header time was: on a multi-day event
+         they are the ONLY time shown, so a two-day tournament rendered with no
+         time at all until you clicked it. Progressive disclosure defers what is
+         rarely needed; when to show up is not that. They stay compact so the
+         title still leads the row. */
+      body.desktop .time-list {
         display: flex;
         grid-column: 2;
-        grid-row: 3;
+        grid-row: 4;   /* was 3; .locations moved down when .time took row 2 */
         flex-direction: column;
         align-items: flex-start;
         gap: 4px;
         margin-top: 8px;
       }
-      body.desktop .time-list.is-children .time-chip {
+      body.desktop .time-list .time-chip {
         font-size: 13px;
         font-weight: 400;
         padding: 5px 12px;
@@ -659,6 +684,12 @@
             var time = document.createElement("div");
             time.className = "time";
             time.textContent = item.headerTime;
+            /* Screen readers voice an en dash between two clock values poorly
+               (it reads as a pause or is skipped, so "9:00 AM – 5:00 PM" can
+               come out as two unrelated times). GOV.UK's style guide spells
+               ranges with the word "to" for exactly this reason. Keep the dash
+               visually, say "to" aloud. */
+            time.setAttribute("aria-label", item.headerTime.replace(/\s–\s/g, " to "));
             card.appendChild(time);
           }
 
