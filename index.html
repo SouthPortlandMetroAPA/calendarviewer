@@ -75,6 +75,34 @@
         opacity: 0.9;
       }
 
+      .cat-filters {
+        display: flex;
+        flex-wrap: wrap;
+        gap: 8px;
+        justify-content: center;
+        margin: 0 0 6px;
+      }
+      .cat-filters:empty { display: none; }
+      .cat-chip {
+        font: inherit;
+        font-size: 0.95rem;
+        font-weight: 700;
+        cursor: pointer;
+        border: 1.5px solid var(--border);
+        background: var(--card);
+        color: var(--text);
+        border-radius: 999px;
+        padding: 8px 16px;
+        line-height: 1;
+      }
+      .cat-chip .cat-n { opacity: 0.55; font-weight: 500; margin-left: 5px; }
+      .cat-chip[aria-pressed="true"] {
+        background: linear-gradient(135deg, var(--spm-primary), var(--spm-accent));
+        border-color: transparent;
+        color: #fff;
+      }
+      .cat-chip[aria-pressed="true"] .cat-n { opacity: 0.85; }
+
       .month-sep {
         width: 100%;
         border-radius: 20px;
@@ -506,6 +534,7 @@
         <div class="status" id="statusText">Loading events…</div>
       </header>
 
+      <div id="catFilters" class="cat-filters"></div>
       <div id="list"></div>
     </div>
 
@@ -642,12 +671,74 @@
       // ── Render ────────────────────────────────────────────────────────
       // Identical to legacy Index.html render function.
 
+      /* Type filter (v1.x). The worker tags every event with a coarse category
+         (league / tournament / holiday / other). We keep the full list, build a
+         chip per category actually present, and re-draw the subset — dropping
+         month separators that no longer precede any kept event so a filtered
+         view never shows an empty month. */
+      var _allData = [];
+      var _catFilter = "all";
+      var CAT_LABEL = { league: "League", tournament: "Tournaments", holiday: "Holidays", other: "Other" };
+      var CAT_ORDER = ["league", "tournament", "holiday", "other"];
+
+      function catCounts(data) {
+        var c = {};
+        (data || []).forEach(function (it) {
+          if (it && it.type === "event") { var k = it.category || "other"; c[k] = (c[k] || 0) + 1; }
+        });
+        return c;
+      }
+      function filterByCategory(data, cat) {
+        if (cat === "all") return data;
+        var out = [], pendingMonth = null;
+        (data || []).forEach(function (it) {
+          if (it.type === "month") { pendingMonth = it; return; }
+          if (it.type === "event" && (it.category || "other") === cat) {
+            if (pendingMonth) { out.push(pendingMonth); pendingMonth = null; }
+            out.push(it);
+          }
+        });
+        return out;
+      }
+      function buildCatFilters(data) {
+        var bar = document.getElementById("catFilters");
+        if (!bar) return;
+        var counts = catCounts(data);
+        var present = CAT_ORDER.filter(function (k) { return counts[k]; });
+        /* One category (or none) needs no filter — a lone button filters nothing. */
+        if (present.length < 2) { bar.innerHTML = ""; return; }
+        var total = present.reduce(function (s, k) { return s + counts[k]; }, 0);
+        var chips = [{ k: "all", label: "All", n: total }].concat(
+          present.map(function (k) { return { k: k, label: CAT_LABEL[k] || k, n: counts[k] }; }));
+        bar.innerHTML = chips.map(function (c) {
+          return '<button type="button" class="cat-chip" data-cat="' + c.k
+            + '" aria-pressed="' + (c.k === _catFilter) + '">' + c.label
+            + '<span class="cat-n">' + c.n + '</span></button>';
+        }).join("");
+        [].forEach.call(bar.querySelectorAll(".cat-chip"), function (b) {
+          b.onclick = function () {
+            _catFilter = b.getAttribute("data-cat");
+            [].forEach.call(bar.querySelectorAll(".cat-chip"), function (x) {
+              x.setAttribute("aria-pressed", String(x === b));
+            });
+            drawList(filterByCategory(_allData, _catFilter));
+          };
+        });
+      }
+
       function render(data) {
+        _allData = Array.isArray(data) ? data : [];
+        _catFilter = "all";
+        buildCatFilters(_allData);
+        drawList(_allData);
+      }
+
+      function drawList(data) {
         var root = document.getElementById("list");
         root.innerHTML = "";
 
         if (!Array.isArray(data) || data.length === 0) {
-          setStatus("No upcoming events found");
+          setStatus(_catFilter === "all" ? "No upcoming events found" : "No events in this category");
           return;
         }
 
